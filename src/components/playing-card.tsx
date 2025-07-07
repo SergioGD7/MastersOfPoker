@@ -45,19 +45,19 @@ export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCa
 
   return (
     <div className={cn(
-        "relative w-28 h-40 md:w-32 md:h-44 rounded-lg bg-white border border-neutral-300 shadow-lg p-2 flex flex-col justify-between font-headline",
+        "relative w-28 h-40 md:w-32 md:h-44 rounded-lg bg-white border border-neutral-300 shadow-lg p-2 font-headline",
         className
     )}>
-      <div className="flex flex-col items-start">
-        <div className={cn("text-3xl md:text-4xl font-bold", colorClass)}>{rank}</div>
-        <SuitIcon className={cn("h-6 w-6 md:h-7 md:w-7", colorClass)} />
+      <div className="absolute top-1 left-1 flex flex-col items-center leading-none">
+        <span className={cn("text-3xl font-bold", colorClass)}>{rank}</span>
+        <SuitIcon className={cn("h-6 w-6", colorClass)} />
       </div>
-      <div className="self-center">
-        <SuitIcon className={cn("h-14 w-14", colorClass)} />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <SuitIcon className={cn("h-12 w-12", colorClass)} />
       </div>
-      <div className="flex flex-col items-end rotate-180">
-        <div className={cn("text-3xl md:text-4xl font-bold", colorClass)}>{rank}</div>
-        <SuitIcon className={cn("h-6 w-6 md:h-7 md:w-7", colorClass)} />
+      <div className="absolute bottom-1 right-1 flex flex-col items-center leading-none rotate-180">
+        <span className={cn("text-3xl font-bold", colorClass)}>{rank}</span>
+        <SuitIcon className={cn("h-6 w-6", colorClass)} />
       </div>
     </div>
   );

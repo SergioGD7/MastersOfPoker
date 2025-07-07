@@ -32,6 +32,14 @@ export function SpadesIcon(props: SVGProps<SVGSVGElement>) {
     );
 }
 
+export function ChipIcon(props: SVGProps<SVGSVGElement>) {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor" {...props}>
+        <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM128 288a32 32 0 1 1 0-64 32 32 0 1 1 0 64zm96-96a32 32 0 1 1-64 0 32 32 0 1 1 64 0zM320 224a32 32 0 1 1 0 64 32 32 0 1 1 0-64zm64 96a32 32 0 1 1 64 0 32 32 0 1 1-64 0zM288 128a32 32 0 1 1-64 0 32 32 0 1 1 64 0z"/>
+      </svg>
+    );
+}
+
 export function LogoIcon(props: SVGProps<SVGSVGElement>) {
     return (
       <svg
