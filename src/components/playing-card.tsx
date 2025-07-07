@@ -19,8 +19,8 @@ const suitIcons = {
 };
 
 const suitColors = {
-  spades: 'text-foreground',
-  clubs: 'text-foreground',
+  spades: 'text-neutral-900',
+  clubs: 'text-neutral-900',
   hearts: 'text-destructive',
   diamonds: 'text-destructive',
 }
