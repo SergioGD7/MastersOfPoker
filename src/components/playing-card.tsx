@@ -32,7 +32,7 @@ export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCa
   if (hidden) {
     return (
         <div className={cn(
-            "w-20 h-28 md:w-24 md:h-36 rounded-lg bg-blue-800 border-2 border-blue-900 flex items-center justify-center",
+            "w-24 h-32 md:w-28 md:h-40 rounded-lg bg-blue-800 border-2 border-blue-900 flex items-center justify-center",
             "bg-gradient-to-br from-blue-700 to-blue-900 shadow-lg",
             className
         )}>
@@ -45,19 +45,19 @@ export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCa
 
   return (
     <div className={cn(
-        "relative w-20 h-28 md:w-24 md:h-36 rounded-lg bg-white dark:bg-neutral-100 border border-neutral-300 dark:border-neutral-200 shadow-lg p-2 flex flex-col justify-between font-headline",
+        "relative w-24 h-32 md:w-28 md:h-40 rounded-lg bg-white border border-neutral-300 shadow-lg p-2 flex flex-col justify-between font-headline",
         className
     )}>
       <div className="flex flex-col items-start">
-        <div className={cn("text-2xl font-bold", colorClass)}>{rank}</div>
-        <SuitIcon className={cn("h-5 w-5", colorClass)} />
+        <div className={cn("text-2xl md:text-3xl font-bold", colorClass)}>{rank}</div>
+        <SuitIcon className={cn("h-5 w-5 md:h-6 md:w-6", colorClass)} />
       </div>
       <div className="self-center">
-        <SuitIcon className={cn("h-10 w-10", colorClass)} />
+        <SuitIcon className={cn("h-12 w-12", colorClass)} />
       </div>
       <div className="flex flex-col items-end rotate-180">
-        <div className={cn("text-2xl font-bold", colorClass)}>{rank}</div>
-        <SuitIcon className={cn("h-5 w-5", colorClass)} />
+        <div className={cn("text-2xl md:text-3xl font-bold", colorClass)}>{rank}</div>
+        <SuitIcon className={cn("h-5 w-5 md:h-6 md:w-6", colorClass)} />
       </div>
     </div>
   );

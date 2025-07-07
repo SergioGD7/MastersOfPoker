@@ -82,8 +82,8 @@ export function HandSimulator() {
                     <div className="space-y-4">
                         <h3 className="text-2xl font-headline">{t('Player 1')}</h3>
                         <div className="flex gap-4 items-center">
-                           {player1Hand[0] ? <PlayingCard {...player1Hand[0]} /> : <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/50 border-2 border-dashed" />}
-                           {player1Hand[1] ? <PlayingCard {...player1Hand[1]} /> : <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/50 border-2 border-dashed" />}
+                           {player1Hand[0] ? <PlayingCard {...player1Hand[0]} /> : <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/50 border-2 border-dashed" />}
+                           {player1Hand[1] ? <PlayingCard {...player1Hand[1]} /> : <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/50 border-2 border-dashed" />}
                         </div>
                         <div className="flex flex-wrap gap-2">
                            <CardSelector player="p1" cardIndex={0} />
@@ -94,8 +94,8 @@ export function HandSimulator() {
                     <div className="space-y-4">
                         <h3 className="text-2xl font-headline">{t('Player 2')}</h3>
                          <div className="flex gap-4 items-center">
-                           {player2Hand[0] ? <PlayingCard {...player2Hand[0]} /> : <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/50 border-2 border-dashed" />}
-                           {player2Hand[1] ? <PlayingCard {...player2Hand[1]} /> : <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/50 border-2 border-dashed" />}
+                           {player2Hand[0] ? <PlayingCard {...player2Hand[0]} /> : <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/50 border-2 border-dashed" />}
+                           {player2Hand[1] ? <PlayingCard {...player2Hand[1]} /> : <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/50 border-2 border-dashed" />}
                         </div>
                         <div className="flex flex-wrap gap-2">
                            <CardSelector player="p2" cardIndex={0} />

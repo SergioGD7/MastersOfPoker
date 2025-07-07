@@ -247,15 +247,15 @@ export function PokerTable() {
                     <div key={player.id} className="flex flex-col items-center">
                         <div className="text-lg font-bold text-white/90 mb-1 font-headline">{player.name}</div>
                         <div className="text-md font-bold text-accent mb-2">{t('Stack')}: ${player.stack}</div>
-                        <div className="flex space-x-2 h-28 md:h-36">
+                        <div className="flex space-x-2 h-32 md:h-40">
                              {player.hand.length > 0 ? player.hand.map((card, i) => 
                                 <div key={i} className="animate-in fade-in duration-300">
                                    <PlayingCard {...card} hidden={gameState !== 'showdown'}/>
                                 </div>
                             ) : (
                                 <>
-                                   <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                                   <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                   <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                   <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
                                 </>
                             )}
                         </div>
@@ -265,7 +265,7 @@ export function PokerTable() {
 
             {/* Community Cards and Pot */}
             <div className="flex flex-col items-center space-y-4">
-                <div className="flex space-x-2 h-28 md:h-36 min-h-[7rem] md:min-h-[9rem] items-center">
+                <div className="flex space-x-2 h-32 md:h-40 min-h-[8rem] md:min-h-[10rem] items-center">
                     {displayedCommunityCards().map((card, i) => (
                          <div key={`${card.rank}-${card.suit}`} className="animate-in fade-in-0 zoom-in-95 duration-500" style={{animationDelay: `${i * 100}ms`}}>
                             <PlayingCard {...card} />
@@ -280,15 +280,15 @@ export function PokerTable() {
             {/* Player 1 (User) */}
             {userPlayer && (
                 <div className="flex flex-col items-center">
-                    <div className="flex space-x-2 mb-2 h-28 md:h-36">
+                    <div className="flex space-x-2 mb-2 h-32 md:h-40">
                          {userPlayer.hand.length > 0 ? userPlayer.hand.map((card, i) => 
                             <div key={i} className="animate-in fade-in duration-300">
                                <PlayingCard {...card} hidden={!userPlayer.showHand && gameState !== 'showdown'} />
                             </div>
                          ) : (
                             <>
-                               <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                               <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                               <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                               <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
                             </>
                          )}
                     </div>
