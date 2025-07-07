@@ -50,7 +50,7 @@ const ChipStack = ({ amount }: { amount: number }) => {
 
 export function PokerTable() {
     const { t } = useI18n();
-    const [gameState, setGameState] = useState<'pre-deal' | 'dealing' | 'pre-flop' | 'flop' | 'turn' | 'river' | 'showdown'>('pre-deal');
+    const [gameState, setGameState] = useState<'setup' | 'pre-deal' | 'dealing' | 'pre-flop' | 'flop' | 'turn' | 'river' | 'showdown'>('setup');
     const [pot, setPot] = useState(0);
     const [players, setPlayers] = useState<Player[]>([]);
     const [numPlayers, setNumPlayers] = useState(2);
@@ -72,16 +72,15 @@ export function PokerTable() {
             isAllIn: false,
         }));
         setPlayers(initialPlayers);
-        setGameState('pre-deal');
     }, [numPlayers, t]);
 
     const dealNewHand = useCallback(() => {
         setIsDealing(true);
         setGameState('dealing');
         
-        const activePlayersForNewHand = players.filter(p => p.stack > 0);
-        if (activePlayersForNewHand.length <= 1) {
-            toast({ title: t('Game Over') });
+        let playersInGame = players.filter(p => p.stack > 0);
+        if (playersInGame.length <= 1) {
+            toast({ title: t('Game Over'), description: t('A player has run out of chips.') });
             setGameState('showdown');
             setIsDealing(false);
             return;
@@ -89,11 +88,11 @@ export function PokerTable() {
 
         const newDeck = shuffleDeck(createDeck());
         
-        const dealtHands: {rank: Rank, suit: Suit}[][] = Array.from({ length: activePlayersForNewHand.length }, () => []);
+        const dealtHands: {rank: Rank, suit: Suit}[][] = Array.from({ length: playersInGame.length }, () => []);
 
         let cardIndex = 0;
         for (let i = 0; i < 2; i++) {
-            for (let j = 0; j < activePlayersForNewHand.length; j++) {
+            for (let j = 0; j < playersInGame.length; j++) {
                 dealtHands[j].push(newDeck[cardIndex++]);
             }
         }
@@ -104,8 +103,8 @@ export function PokerTable() {
         
         setPot(p1Blind + p2Blind);
         setPlayers(prevPlayers => {
-            const playersInGame = prevPlayers.filter(p => p.stack > 0);
-            return playersInGame.map((p, index) => ({
+            const currentPlayersInGame = prevPlayers.filter(p => p.stack > 0);
+            return currentPlayersInGame.map((p, index) => ({
                 ...p,
                 hand: [],
                 showHand: p.isUser ? p.showHand : false,
@@ -118,13 +117,14 @@ export function PokerTable() {
         
         let dealTimeout = 0;
         for (let i = 0; i < 2; i++) {
-            for (let j = 0; j < activePlayersForNewHand.length; j++) {
+            for (let j = 0; j < playersInGame.length; j++) {
                 dealTimeout += 150;
                 setTimeout(() => {
                     setPlayers(prev => {
                         const newPlayers = [...prev];
-                        if (newPlayers[j]) {
-                           newPlayers[j].hand = dealtHands[j].slice(0, i + 1);
+                        const playerIndex = newPlayers.findIndex(p => p.id === playersInGame[j].id);
+                        if (newPlayers[playerIndex]) {
+                           newPlayers[playerIndex].hand = dealtHands[j].slice(0, i + 1);
                         }
                         return newPlayers;
                     });
@@ -137,12 +137,18 @@ export function PokerTable() {
             setIsDealing(false);
         }, dealTimeout + 200);
 
-    }, [players, toast]);
+    }, [players, toast, t]);
     
     const handleShowdown = useCallback(() => {
         setGameState('showdown');
         setPlayers(prevPlayers => {
             const activePlayers = prevPlayers.filter(p => !p.hasFolded);
+            if (activePlayers.length === 1) {
+                const winner = activePlayers[0];
+                 toast({ title: t('{name} wins.', { name: winner.name }), description: t('{name} won the pot of ${pot}.', { name: winner.name, pot }) });
+                 return prevPlayers.map(p => p.id === winner.id ? { ...p, stack: p.stack + pot, showHand: true } : { ...p, showHand: true });
+            }
+
             if(activePlayers.length === 0) return prevPlayers.map(p => ({...p, showHand: true}));;
 
             // Simplified winner determination
@@ -164,43 +170,37 @@ export function PokerTable() {
             return newPlayers;
         });
     }, [pot, t, toast]);
-
-    useEffect(() => {
-        const activePlayers = players.filter(p => !p.hasFolded && !p.isAllIn);
-        const highestBet = Math.max(...players.map(p => p.currentBet));
-        const allHaveBet = activePlayers.every(p => p.currentBet === highestBet || p.isAllIn);
-
-        if (gameState !== 'pre-deal' && gameState !== 'dealing' && gameState !== 'showdown' && allHaveBet && activePlayers.length > 1) {
-             // Reset bets for next round but keep track of total pot
-            const roundPot = players.reduce((sum, p) => sum + p.currentBet, 0);
-            setPot(p => p + roundPot);
-            setPlayers(p => p.map(player => ({ ...player, currentBet: 0 })));
-
-            advanceState();
-        }
-        if (players.filter(p => !p.hasFolded).length === 1 && gameState !== 'pre-deal' && gameState !== 'dealing') {
-            handleShowdown();
-        }
-
-    }, [players, gameState]);
-
-
-    useEffect(() => {
-        if (gameState === 'pre-deal' && !isDealing) {
-            dealNewHand();
-        }
-    }, [gameState, dealNewHand, isDealing]);
-
+    
     const advanceState = useCallback(() => {
         setPlayers(p => p.map(player => ({ ...player, currentBet: 0 })));
         switch (gameState) {
             case 'pre-flop': setGameState('flop'); break;
             case 'flop': setGameState('turn'); break;
             case 'turn': setGameState('river'); break;
-            case 'river': setGameState('showdown'); break;
+            case 'river': handleShowdown(); break;
             default: break;
         }
-    }, [gameState]);
+    }, [gameState, handleShowdown]);
+
+    useEffect(() => {
+        const activePlayers = players.filter(p => !p.hasFolded && !p.isAllIn);
+        const nonFoldedPlayers = players.filter(p => !p.hasFolded);
+        const highestBet = Math.max(...players.map(p => p.currentBet));
+        const allHaveBet = activePlayers.every(p => p.currentBet === highestBet || p.isAllIn);
+
+        if (gameState !== 'setup' && gameState !== 'pre-deal' && gameState !== 'dealing' && gameState !== 'showdown') {
+             if (nonFoldedPlayers.length === 1) {
+                handleShowdown();
+                return;
+            }
+            if (allHaveBet && activePlayers.length > 1) {
+                const roundPot = players.reduce((sum, p) => sum + p.currentBet, 0);
+                setPot(p => p + roundPot);
+                setPlayers(p => p.map(player => ({ ...player, currentBet: 0 })));
+                advanceState();
+            }
+        }
+    }, [players, gameState, advanceState, handleShowdown]);
 
     const handleFold = () => {
         setPlayers(prev => prev.map(p => p.isUser ? { ...p, hasFolded: true, currentBet: 0 } : p));
@@ -209,30 +209,30 @@ export function PokerTable() {
 
     const handleCheck = () => {
         runOpponentActions({ type: 'check' });
-        advanceState();
+        // advanceState(); // This should be handled by the useEffect
     };
 
-    const handleBet = () => {
+    const handleBet = (betValue?: number) => {
         const user = players.find(p => p.isUser);
         if (!user) return;
-        const amount = typeof betAmount === 'number' ? betAmount : 0;
+        const amount = betValue !== undefined ? betValue : (typeof betAmount === 'number' ? betAmount : 0);
 
         if (amount <= 0) {
             toast({ variant: "destructive", title: t('Invalid Bet'), description: t('Bet amount must be positive.') });
             return;
         }
         if (amount % 5 !== 0) {
-            toast({ variant: "destructive", title: t('Invalid Bet'), description: `Bet must be a multiple of ${CHIP_VALUES.join(', ')}.` });
+            toast({ variant: "destructive", title: t('Invalid Bet'), description: `Bet must be a multiple of 5.` });
+            return;
+        }
+
+        if (amount > user.stack) {
+            toast({ variant: "destructive", title: t('Not enough chips'), description: t('You cannot bet more than you have.') });
             return;
         }
 
         const isAllIn = amount >= user.stack;
         const finalBet = isAllIn ? user.stack : amount;
-
-        if (finalBet > user.stack) {
-            toast({ variant: "destructive", title: t('Not enough chips'), description: t('You cannot bet more than you have.') });
-            return;
-        }
         
         setPlayers(prev => prev.map(p => {
             if (p.isUser) {
@@ -246,7 +246,7 @@ export function PokerTable() {
     };
 
     const runOpponentActions = ({ type, amount }: {type: 'fold' | 'check' | 'bet', amount?: number}) => {
-        let betToCall = amount || 0;
+        let betToCall = amount || Math.max(...players.map(p => p.currentBet));
 
         const updatedPlayers = players.map(p => {
              if (p.isUser || p.hasFolded || p.isAllIn) {
@@ -256,24 +256,24 @@ export function PokerTable() {
             // Simple AI
             const hasPair = p.hand.length === 2 && p.hand[0].rank === p.hand[1].rank;
             const hasHighCard = p.hand.some(c => ['A', 'K', 'Q'].includes(c.rank));
-            const handStrength = (hasPair ? 0.5 : 0) + (hasHighCard ? 0.2 : 0);
+            const handStrength = (hasPair ? 0.5 : 0) + (hasHighCard ? 0.2 : 0) + Math.random() * 0.3;
             
-            const actionChance = Math.random() + handStrength;
+            const highestBetOnTable = Math.max(...players.map(pl => pl.currentBet));
+            const neededToCall = highestBetOnTable - p.currentBet;
             
-            if (type === 'bet') { // User has bet
-                if (actionChance < 0.4) { // Fold
+            if (neededToCall > 0) { // Someone has bet
+                if (handStrength < 0.4 && neededToCall > p.stack * 0.2) { // Fold on weak hand and significant bet
                     toast({ description: t('{name} folds.', { name: p.name }) });
                     return { ...p, hasFolded: true };
                 } else { // Call
-                    const callAmount = Math.min(betToCall, p.stack);
+                    const callAmount = Math.min(neededToCall, p.stack);
                     const isAllIn = callAmount >= p.stack;
                     toast({ description: t('{name} calls.', { name: p.name }) });
                     return { ...p, stack: p.stack - callAmount, currentBet: p.currentBet + callAmount, isAllIn };
                 }
-            } else { // User has checked or folded
-                 if (actionChance > 0.6) { // Opponent decides to bet
-                    const betValue = Math.min(p.stack, 50); // Simple bet
-                    betToCall = Math.max(betToCall, betValue);
+            } else { // Can check or bet
+                 if (handStrength > 0.6) { // Opponent decides to bet
+                    const betValue = Math.min(p.stack, Math.max(50, Math.floor(p.stack * 0.15)));
                     toast({ description: `${p.name} bets ${betValue}`});
                     return {...p, stack: p.stack - betValue, currentBet: p.currentBet + betValue};
                  } else { // Opponent checks
@@ -284,13 +284,6 @@ export function PokerTable() {
         });
 
         setPlayers(updatedPlayers);
-        const finalActivePlayers = updatedPlayers.filter(p => !p.hasFolded);
-        const highestBet = Math.max(...updatedPlayers.map(p => p.currentBet));
-        const allMatched = finalActivePlayers.every(p => p.currentBet === highestBet || p.isAllIn);
-        
-        if (finalActivePlayers.length <= 1 || allMatched) {
-            advanceState();
-        }
     };
     
     const displayedCommunityCards = () => {
@@ -310,11 +303,11 @@ export function PokerTable() {
         const user = players.find(p => p.isUser);
         if(user) {
             setBetAmount(user.stack);
-            handleBet();
+            handleBet(user.stack);
         }
     }
 
-    const actionButtonsDisabled = isDealing || gameState === 'showdown' || gameState === 'dealing' || gameState === 'pre-deal' || players.find(p=>p.isUser)?.hasFolded;
+    const actionButtonsDisabled = isDealing || gameState === 'setup' || gameState === 'showdown' || gameState === 'dealing' || gameState === 'pre-deal' || players.find(p=>p.isUser)?.hasFolded;
     const userPlayer = players.find(p => p.isUser);
     const opponents = players.filter(p => !p.isUser);
     const gameOver = useMemo(() => players.filter(p => p.stack > 0).length <= 1 && players.length > 1 && gameState === 'showdown', [players, gameState]);
@@ -323,7 +316,7 @@ export function PokerTable() {
         <div className="w-full aspect-[16/10] bg-primary rounded-3xl p-4 md:p-8 relative flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
             
             <div className="absolute top-4 left-4 z-20">
-              <Select value={String(numPlayers)} onValueChange={(val) => setNumPlayers(parseInt(val))} disabled={isDealing || gameState !== 'pre-deal'}>
+              <Select value={String(numPlayers)} onValueChange={(val) => setNumPlayers(parseInt(val))} disabled={gameState !== 'setup'}>
                 <SelectTrigger className="w-40 bg-background/80">
                   <SelectValue placeholder={t('Number of players')} />
                 </SelectTrigger>
@@ -340,15 +333,15 @@ export function PokerTable() {
                     <div key={player.id} className="flex flex-col items-center relative">
                         <div className="text-lg font-bold text-white/90 mb-1 font-headline">{player.name}</div>
                         <div className="text-md font-bold text-accent mb-2">{t('Stack')}: ${player.stack}</div>
-                        <div className="flex space-x-2 h-40 md:h-44">
+                        <div className="flex space-x-2 h-36">
                              {player.hand.length > 0 ? player.hand.map((card, i) => 
                                 <div key={i} className="animate-in fade-in duration-300">
                                    <PlayingCard {...card} hidden={gameState !== 'showdown'}/>
                                 </div>
                             ) : (
                                 <>
-                                   <div className="w-28 h-40 md:w-32 md:h-44 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                                   <div className="w-28 h-40 md:w-32 md:h-44 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                   <div className="w-24 h-36 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                   <div className="w-24 h-36 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
                                 </>
                             )}
                         </div>
@@ -358,29 +351,35 @@ export function PokerTable() {
             </div>
 
             <div className="flex flex-col items-center space-y-4">
-                <div className="flex space-x-2 h-40 md:h-44 min-h-[10rem] md:min-h-[11rem] items-center">
-                    {displayedCommunityCards().map((card, i) => (
-                         <div key={`${card.rank}-${card.suit}`} className="animate-in fade-in-0 zoom-in-95 duration-500" style={{animationDelay: `${i * 100}ms`}}>
-                            <PlayingCard {...card} />
-                         </div>
-                    ))}
-                </div>
+                 {gameState === 'setup' ? (
+                     <div className="flex justify-center items-center h-36 min-h-[9rem]">
+                        <Button onClick={dealNewHand} size="lg" className="bg-accent hover:bg-accent/90">{t('Start Game')}</Button>
+                    </div>
+                ) : (
+                    <div className="flex space-x-2 h-36 min-h-[9rem] items-center">
+                        {displayedCommunityCards().map((card, i) => (
+                             <div key={`${card.rank}-${card.suit}`} className="animate-in fade-in-0 zoom-in-95 duration-500" style={{animationDelay: `${i * 100}ms`}}>
+                                <PlayingCard {...card} />
+                             </div>
+                        ))}
+                    </div>
+                )}
                 <div className="bg-black/30 text-accent font-bold text-xl px-6 py-2 rounded-full border-2 border-accent/50">
-                    {t('Pot')}: ${pot + players.reduce((acc, p) => acc + p.currentBet, 0)}
+                    {t('Pot')}: ${pot}
                 </div>
             </div>
 
             {userPlayer && (
                 <div className="flex flex-col items-center relative">
-                    <div className="flex space-x-2 mb-2 h-40 md:h-44">
+                    <div className="flex space-x-2 mb-2 h-36">
                          {userPlayer.hand.length > 0 ? userPlayer.hand.map((card, i) => 
                             <div key={i} className="animate-in fade-in duration-300">
                                <PlayingCard {...card} hidden={!userPlayer.showHand && gameState !== 'showdown'} />
                             </div>
                          ) : (
                             <>
-                               <div className="w-28 h-40 md:w-32 md:h-44 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                               <div className="w-28 h-40 md:w-32 md:h-44 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                               <div className="w-24 h-36 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                               <div className="w-24 h-36 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
                             </>
                          )}
                     </div>
@@ -394,14 +393,14 @@ export function PokerTable() {
                 <Button onClick={handleFold} variant="destructive" disabled={actionButtonsDisabled}>{t('Fold')}</Button>
                 <Button onClick={handleCheck} disabled={actionButtonsDisabled}>{t('Check')}</Button>
                 <div className="flex items-center gap-2">
-                    <Button onClick={handleBet} disabled={actionButtonsDisabled}>{t('Bet')}</Button>
+                    <Button onClick={() => handleBet()} disabled={actionButtonsDisabled}>{t('Bet')}</Button>
                     <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-24 bg-background/80" disabled={actionButtonsDisabled} />
                     <Button onClick={handleAllIn} variant="destructive" className="bg-red-800 hover:bg-red-700" disabled={actionButtonsDisabled}>All-in</Button>
                 </div>
             </div>
 
             <div className="absolute bottom-4 right-4 flex flex-col sm:flex-row gap-2">
-                {gameState === 'showdown' && <Button onClick={() => setGameState('pre-deal')} className="bg-accent hover:bg-accent/90" disabled={gameOver}>{t('New Hand')}</Button>}
+                {gameState === 'showdown' && <Button onClick={dealNewHand} className="bg-accent hover:bg-accent/90" disabled={gameOver}>{t('New Hand')}</Button>}
                 <Button onClick={() => handleShowCards(userPlayer ? !userPlayer.showHand : false)} variant="outline" disabled={actionButtonsDisabled || gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
             </div>
         </div>

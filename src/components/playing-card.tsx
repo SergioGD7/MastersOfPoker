@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { SpadesIcon, HeartsIcon, DiamondsIcon, ClubsIcon } from "./icons";
 
 export type Suit = 'spades' | 'hearts' | 'diamonds' | 'clubs';
 export type Rank = 'A' | 'K' | 'Q' | 'J' | '10' | '9' | '8' | '7' | '6' | '5' | '4' | '3' | '2';
@@ -11,11 +10,11 @@ interface PlayingCardProps {
   hidden?: boolean;
 }
 
-const suitIcons = {
-  spades: SpadesIcon,
-  hearts: HeartsIcon,
-  diamonds: DiamondsIcon,
-  clubs: ClubsIcon,
+const suitEmojis = {
+  spades: '♠️',
+  hearts: '♥️',
+  diamonds: '♦️',
+  clubs: '♣️',
 };
 
 const suitColors = {
@@ -26,13 +25,13 @@ const suitColors = {
 }
 
 export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCardProps) {
-  const SuitIcon = suitIcons[suit];
+  const suitEmoji = suitEmojis[suit];
   const colorClass = suitColors[suit];
 
   if (hidden) {
     return (
         <div className={cn(
-            "w-28 h-40 md:w-32 md:h-44 rounded-lg bg-blue-800 border-2 border-blue-900 flex items-center justify-center",
+            "w-24 h-36 rounded-lg bg-blue-800 border-2 border-blue-900 flex items-center justify-center",
             "bg-gradient-to-br from-blue-700 to-blue-900 shadow-lg",
             className
         )}>
@@ -45,19 +44,19 @@ export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCa
 
   return (
     <div className={cn(
-        "relative w-28 h-40 md:w-32 md:h-44 rounded-lg bg-white border border-neutral-300 shadow-lg p-2 font-headline",
+        "relative w-24 h-36 rounded-lg bg-white border border-neutral-300 shadow-lg p-1 font-headline",
         className
     )}>
       <div className="absolute top-1 left-1 flex flex-col items-center leading-none">
-        <span className={cn("text-3xl font-bold", colorClass)}>{rank}</span>
-        <SuitIcon className={cn("h-6 w-6", colorClass)} />
+        <span className={cn("text-2xl font-bold", colorClass)}>{rank}</span>
+        <span className={cn("text-lg")}>{suitEmoji}</span>
       </div>
       <div className="absolute inset-0 flex items-center justify-center">
-        <SuitIcon className={cn("h-12 w-12", colorClass)} />
+        <span className={cn("text-5xl")}>{suitEmoji}</span>
       </div>
       <div className="absolute bottom-1 right-1 flex flex-col items-center leading-none rotate-180">
-        <span className={cn("text-3xl font-bold", colorClass)}>{rank}</span>
-        <SuitIcon className={cn("h-6 w-6", colorClass)} />
+        <span className={cn("text-2xl font-bold", colorClass)}>{rank}</span>
+        <span className={cn("text-lg")}>{suitEmoji}</span>
       </div>
     </div>
   );
