@@ -18,6 +18,7 @@ type Player = {
     stack: number;
     isUser: boolean;
     showHand: boolean;
+    hasFolded: boolean;
 };
 
 function createDeck(): {rank: Rank, suit: Suit}[] {
@@ -51,6 +52,7 @@ export function PokerTable() {
             stack: 1000,
             isUser: i === 0,
             showHand: false,
+            hasFolded: false,
         }));
         setPlayers(initialPlayers);
         setGameState('pre-deal');
@@ -64,6 +66,7 @@ export function PokerTable() {
         const dealtHands: {rank: Rank, suit: Suit}[][] = Array.from({ length: numPlayers }, () => []);
 
         let cardIndex = 0;
+        // Deal 2 cards to each player's hand data structure
         for (let i = 0; i < 2; i++) {
             for (let j = 0; j < numPlayers; j++) {
                 dealtHands[j].push(newDeck[cardIndex++]);
@@ -75,30 +78,28 @@ export function PokerTable() {
         const p2Blind = 20;
         
         setPlayers(prevPlayers => {
-            let newPot = 0;
-            const playersWithResetHands = prevPlayers.map(p => ({...p, hand:[], showHand: false}));
-            
-            if(playersWithResetHands[0] && playersWithResetHands[0].stack > p1Blind) {
-                playersWithResetHands[0].stack -= p1Blind;
-                newPot += p1Blind;
-            }
-            if(playersWithResetHands[1] && playersWithResetHands[1].stack > p2Blind) {
-                playersWithResetHands[1].stack -= p2Blind;
-                newPot += p2Blind;
-            }
+            let newPot = p1Blind + p2Blind;
+            const playersWithResetHands = prevPlayers.map((p, index) => ({
+                ...p,
+                hand: [],
+                showHand: false,
+                hasFolded: false,
+                stack: index === 0 ? p.stack - p1Blind : (index === 1 ? p.stack - p2Blind : p.stack)
+            }));
             setPot(newPot);
             return playersWithResetHands;
         });
 
+        // Animate dealing
         let dealTimeout = 0;
         for (let i = 0; i < 2; i++) {
             for (let j = 0; j < numPlayers; j++) {
-                dealTimeout += 200;
+                dealTimeout += 150;
                 setTimeout(() => {
                     setPlayers(prev => {
                         const newPlayers = [...prev];
-                        if (newPlayers[j] && dealtHands[j] && dealtHands[j][i]) {
-                           newPlayers[j].hand = [...newPlayers[j].hand, dealtHands[j][i]];
+                        if (newPlayers[j]) {
+                           newPlayers[j].hand = dealtHands[j].slice(0, i + 1);
                         }
                         return newPlayers;
                     });
@@ -112,14 +113,13 @@ export function PokerTable() {
         }, dealTimeout + 200);
 
     }, [numPlayers]);
-
+    
     const handleShowdown = useCallback(() => {
         setPlayers(prevPlayers => {
-            const activePlayers = prevPlayers.filter(p => p.stack > 0);
+            const activePlayers = prevPlayers.filter(p => !p.hasFolded);
             if(activePlayers.length === 0) return prevPlayers;
 
-            const winnerIndex = Math.floor(Math.random() * activePlayers.length);
-            const winner = activePlayers[winnerIndex];
+            const winner = activePlayers[Math.floor(Math.random() * activePlayers.length)];
             if (!winner) return prevPlayers;
     
             if (winner.isUser) {
@@ -133,7 +133,7 @@ export function PokerTable() {
             if(newPlayers[winnerIdx]) {
                 newPlayers[winnerIdx].stack += pot;
             }
-            return newPlayers;
+            return newPlayers.map(p => ({...p, showHand: true}));
         });
     }, [pot, t, toast]);
 
@@ -148,7 +148,7 @@ export function PokerTable() {
         } else if (gameState === 'showdown' && !isDealing) {
             handleShowdown();
         }
-    }, [gameState, dealNewHand, handleShowdown, isDealing, players, t, toast]);
+    }, [gameState, dealNewHand, handleShowdown, isDealing]);
 
     const advanceState = useCallback(() => {
         switch (gameState) {
@@ -161,9 +161,12 @@ export function PokerTable() {
     }, [gameState]);
 
     const handleFold = () => {
-        const remainingPlayers = players.filter(p => !p.isUser && p.stack > 0);
-        const winner = remainingPlayers[Math.floor(Math.random() * remainingPlayers.length)];
-        if (winner) {
+        setPlayers(prev => prev.map(p => p.isUser ? { ...p, hasFolded: true } : p));
+        
+        const activeOpponents = players.filter(p => !p.isUser && !p.hasFolded);
+
+        if (activeOpponents.length === 1) {
+            const winner = activeOpponents[0];
             toast({ title: t('You folded'), description: t('{name} wins the pot.', { name: winner.name }) });
             setPlayers(prev => {
                 const newPlayers = [...prev];
@@ -171,12 +174,15 @@ export function PokerTable() {
                 if (newPlayers[winnerIndex]) newPlayers[winnerIndex].stack += pot;
                 return newPlayers;
             });
+        } else {
+             toast({ title: t('You folded')});
         }
+
         setGameState('pre-deal');
     };
 
     const handleCheck = () => {
-        toast({ title: t('You check'), description: t('Everyone checks.') });
+        toast({ title: t('You check'), description: t('Other players check.') });
         advanceState();
     };
 
@@ -194,20 +200,30 @@ export function PokerTable() {
         }
         
         let totalPotIncrease = 0;
-        setPlayers(prev => prev.map(p => {
+        const newPlayers = players.map(p => {
             if (p.isUser) {
-                totalPotIncrease += betAmount
+                totalPotIncrease += betAmount;
                 return { ...p, stack: p.stack - betAmount };
             }
-            // Opponents call
-            const callAmount = Math.min(betAmount, p.stack);
-            totalPotIncrease += callAmount;
-            return { ...p, stack: p.stack - callAmount };
-        }));
+            if (p.hasFolded || p.stack === 0) {
+                return p;
+            }
 
+            const actionChance = Math.random();
+            if (actionChance < 0.2) { // 20% chance to fold
+                toast({ description: t('{name} folds.', { name: p.name }) });
+                return { ...p, hasFolded: true };
+            } else { // 80% chance to call
+                const callAmount = Math.min(betAmount, p.stack);
+                totalPotIncrease += callAmount;
+                toast({ description: t('{name} calls.', { name: p.name }) });
+                return { ...p, stack: p.stack - callAmount };
+            }
+        });
+
+        setPlayers(newPlayers);
         setPot(p => p + totalPotIncrease);
-
-        toast({ title: t('You bet {amount}', { amount: betAmount }), description: t('Everyone calls.') });
+        toast({ title: t('You bet {amount}', { amount: betAmount }) });
         
         advanceState();
     };
@@ -233,7 +249,6 @@ export function PokerTable() {
     return (
         <div className="w-full aspect-[16/10] bg-primary rounded-3xl p-4 md:p-8 relative flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
             
-            {/* Player Selection */}
             <div className="absolute top-4 left-4 z-20">
               <Select value={String(numPlayers)} onValueChange={(val) => setNumPlayers(parseInt(val))} disabled={isDealing}>
                 <SelectTrigger className="w-40 bg-background/80">
@@ -247,21 +262,20 @@ export function PokerTable() {
               </Select>
             </div>
 
-            {/* Opponents */}
             <div className="flex justify-center gap-4 flex-wrap">
                 {opponents.map(player => (
                     <div key={player.id} className="flex flex-col items-center">
                         <div className="text-lg font-bold text-white/90 mb-1 font-headline">{player.name}</div>
                         <div className="text-md font-bold text-accent mb-2">{t('Stack')}: ${player.stack}</div>
-                        <div className="flex space-x-2 h-32 md:h-40">
+                        <div className="flex space-x-2 h-40 md:h-44">
                              {player.hand.length > 0 ? player.hand.map((card, i) => 
                                 <div key={i} className="animate-in fade-in duration-300">
                                    <PlayingCard {...card} hidden={gameState !== 'showdown'}/>
                                 </div>
                             ) : (
                                 <>
-                                   <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                                   <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                   <div className="w-28 h-40 md:w-32 md:h-44 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                   <div className="w-28 h-40 md:w-32 md:h-44 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
                                 </>
                             )}
                         </div>
@@ -269,9 +283,8 @@ export function PokerTable() {
                 ))}
             </div>
 
-            {/* Community Cards and Pot */}
             <div className="flex flex-col items-center space-y-4">
-                <div className="flex space-x-2 h-32 md:h-40 min-h-[8rem] md:min-h-[10rem] items-center">
+                <div className="flex space-x-2 h-40 md:h-44 min-h-[10rem] md:min-h-[11rem] items-center">
                     {displayedCommunityCards().map((card, i) => (
                          <div key={`${card.rank}-${card.suit}`} className="animate-in fade-in-0 zoom-in-95 duration-500" style={{animationDelay: `${i * 100}ms`}}>
                             <PlayingCard {...card} />
@@ -283,18 +296,17 @@ export function PokerTable() {
                 </div>
             </div>
 
-            {/* Player 1 (User) */}
             {userPlayer && (
                 <div className="flex flex-col items-center">
-                    <div className="flex space-x-2 mb-2 h-32 md:h-40">
+                    <div className="flex space-x-2 mb-2 h-40 md:h-44">
                          {userPlayer.hand.length > 0 ? userPlayer.hand.map((card, i) => 
                             <div key={i} className="animate-in fade-in duration-300">
                                <PlayingCard {...card} hidden={!userPlayer.showHand && gameState !== 'showdown'} />
                             </div>
                          ) : (
                             <>
-                               <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                               <div className="w-24 h-32 md:w-28 md:h-40 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                               <div className="w-28 h-40 md:w-32 md:h-44 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                               <div className="w-28 h-40 md:w-32 md:h-44 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
                             </>
                          )}
                     </div>
@@ -303,8 +315,6 @@ export function PokerTable() {
                 </div>
             )}
 
-
-             {/* Player 1 Actions */}
             <div className="absolute bottom-4 left-4 flex flex-col sm:flex-row gap-2">
                 <Button onClick={handleFold} variant="destructive" disabled={actionButtonsDisabled}>{t('Fold')}</Button>
                 <Button onClick={handleCheck} disabled={actionButtonsDisabled}>{t('Check')}</Button>

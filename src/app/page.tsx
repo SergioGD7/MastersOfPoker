@@ -1,7 +1,7 @@
 'use client'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { HandSimulator } from "@/components/hand-simulator";
+import { HandRankings } from "@/components/hand-rankings";
 import { StatTracker } from "@/components/stat-tracker";
 import { PokerTable } from "@/components/poker-table";
 import { LogoIcon } from "@/components/icons";
@@ -23,14 +23,14 @@ export default function Home() {
         <Tabs defaultValue="visualizer" className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-background/50">
             <TabsTrigger value="visualizer">{t('Visualizer')}</TabsTrigger>
-            <TabsTrigger value="simulator">{t('Hand Simulator')}</TabsTrigger>
+            <TabsTrigger value="rankings">{t('Hand Rankings')}</TabsTrigger>
             <TabsTrigger value="tracker">{t('Stat Tracker')}</TabsTrigger>
           </TabsList>
           <TabsContent value="visualizer" className="mt-6">
             <PokerTable />
           </TabsContent>
-          <TabsContent value="simulator" className="mt-6">
-            <HandSimulator />
+          <TabsContent value="rankings" className="mt-6">
+            <HandRankings />
           </TabsContent>
           <TabsContent value="tracker" className="mt-6">
             <StatTracker />
