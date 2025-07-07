@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChartContainer, ChartConfig, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { BarChart, Bar, Rectangle, XAxis, YAxis, CartesianGrid } from "recharts"
+import { useI18n } from "./i18n-provider";
 
 const MOCK_HAND_HISTORY = [
     { hand: "AA", handsPlayed: 15, netWon: 350.50, winRate: 85.2 },
@@ -30,28 +31,29 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function StatTracker() {
+    const { t } = useI18n();
     return (
         <Card className="border-accent/20">
             <CardHeader>
-                <CardTitle className="font-headline text-accent">Performance Stats</CardTitle>
-                <CardDescription>Analyze your hand history and track your win rates.</CardDescription>
+                <CardTitle className="font-headline text-accent">{t('Performance Stats')}</CardTitle>
+                <CardDescription>{t('Analyze your hand history and track your win rates.')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="flex justify-start">
                     <Button className="bg-accent hover:bg-accent/90">
-                        Import Hand History (Coming Soon)
+                        {t('Import Hand History (Coming Soon)')}
                     </Button>
                 </div>
                 
                 <div>
-                    <h3 className="text-2xl font-headline mb-4">Hand Performance</h3>
+                    <h3 className="text-2xl font-headline mb-4">{t('Hand Performance')}</h3>
                      <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Hand</TableHead>
-                                <TableHead>Times Played</TableHead>
-                                <TableHead>Net Won ($)</TableHead>
-                                <TableHead>Win Rate (%)</TableHead>
+                                <TableHead>{t('Hand')}</TableHead>
+                                <TableHead>{t('Times Played')}</TableHead>
+                                <TableHead>{t('Net Won ($)')}</TableHead>
+                                <TableHead>{t('Win Rate (%)')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -70,7 +72,7 @@ export function StatTracker() {
                 </div>
                 
                 <div>
-                     <h3 className="text-2xl font-headline mb-4">Win Rate by Blind Level</h3>
+                     <h3 className="text-2xl font-headline mb-4">{t('Win Rate by Blind Level')}</h3>
                      <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
                         <BarChart accessibilityLayer data={MOCK_WINRATE_DATA}>
                             <CartesianGrid vertical={false} />

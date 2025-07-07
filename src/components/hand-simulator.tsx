@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useI18n } from './i18n-provider';
 
 const ranks: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
 const suits: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
@@ -13,6 +14,7 @@ const suits: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 type Hand = [{rank: Rank, suit: Suit} | null, {rank: Rank, suit: Suit} | null];
 
 export function HandSimulator() {
+    const { t } = useI18n();
     const [player1Hand, setPlayer1Hand] = useState<Hand>([null, null]);
     const [player2Hand, setPlayer2Hand] = useState<Hand>([null, null]);
     const [probabilities, setProbabilities] = useState<{p1: number, p2: number, tie: number} | null>(null);
@@ -56,7 +58,7 @@ export function HandSimulator() {
         return (
             <Select onValueChange={(val) => handleCardChange(player, cardIndex, val)} value={cardValue}>
                 <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select a card" />
+                    <SelectValue placeholder={t('Select a card')} />
                 </SelectTrigger>
                 <SelectContent>
                     {availableCards.map(card => (
@@ -72,13 +74,13 @@ export function HandSimulator() {
     return (
         <Card className="border-accent/20">
             <CardHeader>
-                <CardTitle className="font-headline text-accent">Pre-Flop Win Probability</CardTitle>
-                <CardDescription>Select two hands and simulate their equity before the flop.</CardDescription>
+                <CardTitle className="font-headline text-accent">{t('Pre-Flop Win Probability')}</CardTitle>
+                <CardDescription>{t('Select two hands and simulate their equity before the flop.')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-4">
-                        <h3 className="text-2xl font-headline">Player 1</h3>
+                        <h3 className="text-2xl font-headline">{t('Player 1')}</h3>
                         <div className="flex gap-4 items-center">
                            {player1Hand[0] ? <PlayingCard {...player1Hand[0]} /> : <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/50 border-2 border-dashed" />}
                            {player1Hand[1] ? <PlayingCard {...player1Hand[1]} /> : <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/50 border-2 border-dashed" />}
@@ -90,7 +92,7 @@ export function HandSimulator() {
                     </div>
 
                     <div className="space-y-4">
-                        <h3 className="text-2xl font-headline">Player 2</h3>
+                        <h3 className="text-2xl font-headline">{t('Player 2')}</h3>
                          <div className="flex gap-4 items-center">
                            {player2Hand[0] ? <PlayingCard {...player2Hand[0]} /> : <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/50 border-2 border-dashed" />}
                            {player2Hand[1] ? <PlayingCard {...player2Hand[1]} /> : <div className="w-20 h-28 md:w-24 md:h-36 rounded-lg bg-muted/50 border-2 border-dashed" />}
@@ -102,21 +104,21 @@ export function HandSimulator() {
                     </div>
                 </div>
                 <div className="flex justify-center">
-                    <Button onClick={simulate} className="bg-accent hover:bg-accent/90" size="lg" disabled={!player1Hand.every(c => c) || !player2Hand.every(c => c)}>Simulate</Button>
+                    <Button onClick={simulate} className="bg-accent hover:bg-accent/90" size="lg" disabled={!player1Hand.every(c => c) || !player2Hand.every(c => c)}>{t('Simulate')}</Button>
                 </div>
                 {probabilities && (
                     <div className="pt-6 space-y-4 animate-in fade-in-50 duration-500">
-                        <h3 className="text-2xl font-headline text-center">Results</h3>
+                        <h3 className="text-2xl font-headline text-center">{t('Results')}</h3>
                         <div className="space-y-2">
-                            <label>Player 1 Win: {probabilities.p1}%</label>
+                            <label>{t('Player 1 Win')}: {probabilities.p1}%</label>
                             <Progress value={probabilities.p1} className="h-4 [&>div]:bg-chart-2" />
                         </div>
                          <div className="space-y-2">
-                            <label>Player 2 Win: {probabilities.p2}%</label>
+                            <label>{t('Player 2 Win')}: {probabilities.p2}%</label>
                             <Progress value={probabilities.p2} className="h-4 [&>div]:bg-chart-4"/>
                         </div>
                          <div className="space-y-2">
-                            <label>Tie: {probabilities.tie}%</label>
+                            <label>{t('Tie')}: {probabilities.tie}%</label>
                             <Progress value={probabilities.tie} className="h-4 [&>div]:bg-muted" />
                         </div>
                     </div>
