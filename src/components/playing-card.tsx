@@ -21,8 +21,8 @@ const suitIcons = {
 const suitColors = {
   spades: 'text-foreground',
   clubs: 'text-foreground',
-  hearts: 'text-red-500',
-  diamonds: 'text-red-500',
+  hearts: 'text-destructive',
+  diamonds: 'text-destructive',
 }
 
 export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCardProps) {
