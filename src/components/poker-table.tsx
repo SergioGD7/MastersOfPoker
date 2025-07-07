@@ -57,20 +57,13 @@ export function PokerTable() {
     }, [numPlayers, t]);
 
     const dealNewHand = useCallback(() => {
-        if (players.filter(p => p.stack > 0).length <= 1 && players.length > 1) {
-            toast({ title: t('Game Over'), description: t('A player has run out of chips.') });
-            setGameState('showdown');
-            return;
-        }
-
         setIsDealing(true);
         setGameState('dealing');
         const newDeck = shuffleDeck(createDeck());
         
-        let cardIndex = 0;
         const dealtHands: {rank: Rank, suit: Suit}[][] = Array.from({ length: numPlayers }, () => []);
 
-        // Deal 2 cards to each player
+        let cardIndex = 0;
         for (let i = 0; i < 2; i++) {
             for (let j = 0; j < numPlayers; j++) {
                 dealtHands[j].push(newDeck[cardIndex++]);
@@ -82,15 +75,21 @@ export function PokerTable() {
         const p2Blind = 20;
         
         setPlayers(prevPlayers => {
-            const newPlayers = prevPlayers.map(p => ({...p, hand:[], showHand: false}));
-            if(newPlayers[0]) newPlayers[0].stack -= p1Blind;
-            if(newPlayers[1]) newPlayers[1].stack -= p2Blind;
-            return newPlayers;
+            let newPot = 0;
+            const playersWithResetHands = prevPlayers.map(p => ({...p, hand:[], showHand: false}));
+            
+            if(playersWithResetHands[0] && playersWithResetHands[0].stack > p1Blind) {
+                playersWithResetHands[0].stack -= p1Blind;
+                newPot += p1Blind;
+            }
+            if(playersWithResetHands[1] && playersWithResetHands[1].stack > p2Blind) {
+                playersWithResetHands[1].stack -= p2Blind;
+                newPot += p2Blind;
+            }
+            setPot(newPot);
+            return playersWithResetHands;
         });
 
-        setPot(p1Blind + p2Blind);
-
-        // Animated dealing
         let dealTimeout = 0;
         for (let i = 0; i < 2; i++) {
             for (let j = 0; j < numPlayers; j++) {
@@ -98,8 +97,8 @@ export function PokerTable() {
                 setTimeout(() => {
                     setPlayers(prev => {
                         const newPlayers = [...prev];
-                        if (newPlayers[j]) {
-                           newPlayers[j].hand = dealtHands[j].slice(0, i + 1);
+                        if (newPlayers[j] && dealtHands[j] && dealtHands[j][i]) {
+                           newPlayers[j].hand = [...newPlayers[j].hand, dealtHands[j][i]];
                         }
                         return newPlayers;
                     });
@@ -112,14 +111,44 @@ export function PokerTable() {
             setIsDealing(false);
         }, dealTimeout + 200);
 
-    }, [players, numPlayers, toast, t]);
+    }, [numPlayers]);
+
+    const handleShowdown = useCallback(() => {
+        setPlayers(prevPlayers => {
+            const activePlayers = prevPlayers.filter(p => p.stack > 0);
+            if(activePlayers.length === 0) return prevPlayers;
+
+            const winnerIndex = Math.floor(Math.random() * activePlayers.length);
+            const winner = activePlayers[winnerIndex];
+            if (!winner) return prevPlayers;
+    
+            if (winner.isUser) {
+                toast({ title: t('You win!'), description: t('You won the pot of ${pot}.', { pot }) });
+            } else {
+                toast({ title: t('{name} wins.', { name: winner.name }), description: t('{name} won the pot of ${pot}.', { name: winner.name, pot }) });
+            }
+            
+            const newPlayers = [...prevPlayers];
+            const winnerIdx = newPlayers.findIndex(p => p.id === winner.id);
+            if(newPlayers[winnerIdx]) {
+                newPlayers[winnerIdx].stack += pot;
+            }
+            return newPlayers;
+        });
+    }, [pot, t, toast]);
 
     useEffect(() => {
-        // This check prevents an infinite loop when players state is updated in dealNewHand
         if (gameState === 'pre-deal' && !isDealing) {
+            if (players.length > 1 && players.filter(p => p.stack > 0).length <= 1) {
+                toast({ title: t('Game Over'), description: t('A player has run out of chips.') });
+                setGameState('showdown');
+                return;
+            }
             dealNewHand();
+        } else if (gameState === 'showdown' && !isDealing) {
+            handleShowdown();
         }
-    }, [gameState, dealNewHand, isDealing]);
+    }, [gameState, dealNewHand, handleShowdown, isDealing, players, t, toast]);
 
     const advanceState = useCallback(() => {
         switch (gameState) {
@@ -127,19 +156,22 @@ export function PokerTable() {
             case 'flop': setGameState('turn'); break;
             case 'turn': setGameState('river'); break;
             case 'river': setGameState('showdown'); break;
+            default: break;
         }
     }, [gameState]);
 
     const handleFold = () => {
-        const remainingPlayers = players.filter(p => !p.isUser);
-        const winner = remainingPlayers[Math.floor(Math.random() * remainingPlayers.length)]; // Random opponent wins
-        toast({ title: t('You folded'), description: t('{name} wins the pot.', { name: winner.name }) });
-        setPlayers(prev => {
-            const newPlayers = [...prev];
-            const winnerIndex = newPlayers.findIndex(p => p.id === winner.id);
-            if (newPlayers[winnerIndex]) newPlayers[winnerIndex].stack += pot;
-            return newPlayers;
-        });
+        const remainingPlayers = players.filter(p => !p.isUser && p.stack > 0);
+        const winner = remainingPlayers[Math.floor(Math.random() * remainingPlayers.length)];
+        if (winner) {
+            toast({ title: t('You folded'), description: t('{name} wins the pot.', { name: winner.name }) });
+            setPlayers(prev => {
+                const newPlayers = [...prev];
+                const winnerIndex = newPlayers.findIndex(p => p.id === winner.id);
+                if (newPlayers[winnerIndex]) newPlayers[winnerIndex].stack += pot;
+                return newPlayers;
+            });
+        }
         setGameState('pre-deal');
     };
 
@@ -180,32 +212,6 @@ export function PokerTable() {
         advanceState();
     };
 
-    const handleShowdown = useCallback(() => {
-        // Simplified showdown logic
-        const winnerIndex = Math.floor(Math.random() * numPlayers);
-        const winner = players[winnerIndex];
-        if (!winner) return;
-
-        if (winner.isUser) {
-            toast({ title: t('You win!'), description: t('You won the pot of ${pot}.', { pot }) });
-        } else {
-            toast({ title: t('{name} wins.', { name: winner.name }), description: t('{name} won the pot of ${pot}.', { name: winner.name, pot }) });
-        }
-        
-        setPlayers(prev => {
-            const newPlayers = [...prev];
-            if(newPlayers[winnerIndex]) newPlayers[winnerIndex].stack += pot;
-            return newPlayers;
-        });
-
-    }, [pot, toast, t, players, numPlayers]);
-
-    useEffect(() => {
-        if (gameState === 'showdown' && !isDealing) {
-            handleShowdown();
-        }
-    }, [gameState, isDealing, handleShowdown]);
-    
     const displayedCommunityCards = () => {
         switch(gameState) {
             case 'flop': return communityCards.slice(0, 3);
@@ -222,7 +228,7 @@ export function PokerTable() {
     const actionButtonsDisabled = isDealing || gameState === 'showdown' || gameState === 'dealing' || gameState === 'pre-deal';
     const userPlayer = players.find(p => p.isUser);
     const opponents = players.filter(p => !p.isUser);
-    const gameOver = players.filter(p => p.stack > 0).length <= 1 && players.length > 1;
+    const gameOver = players.length > 1 && players.filter(p => p.stack > 0).length <= 1;
 
     return (
         <div className="w-full aspect-[16/10] bg-primary rounded-3xl p-4 md:p-8 relative flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
