@@ -19,10 +19,10 @@ const suitIcons = {
 };
 
 const suitColors = {
-  spades: 'text-neutral-900',
-  clubs: 'text-neutral-900',
-  hearts: 'text-destructive',
-  diamonds: 'text-destructive',
+  spades: 'text-black',
+  clubs: 'text-black',
+  hearts: 'text-red-600',
+  diamonds: 'text-red-600',
 }
 
 export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCardProps) {
