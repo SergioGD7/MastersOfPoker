@@ -118,13 +118,13 @@ export function PokerTable() {
                     const isWinner = p.id === winner!.id;
                     return {
                         ...p, 
-                        stack: isWinner ? p.stack + p.currentBet + finalPot : p.stack,
+                        stack: isWinner ? p.stack + finalPot : p.stack, // Winner gets the whole pot
                         showHand: true,
                         currentBet: 0,
                     };
                 });
                 setPot(0);
-                return updatedPlayers;
+                return updatedPlayers.map(p => ({...p, currentBet: 0})); // Reset all current bets after assigning pot
             }
 
              // If no winner, return bets and reset
@@ -241,7 +241,7 @@ export function PokerTable() {
         const playerHands = tempPlayers.map(() => [tempDeck.pop()!, tempDeck.pop()!]);
 
         // This part of the deck is for community cards
-        const finalDeck = tempDeck.slice(playerHands.length * 2);
+        const finalDeck = tempDeck;
         setDeck(finalDeck);
 
         const finalPlayerState = tempPlayers.map((p, idx) => ({...p, hand: playerHands[idx]}));
@@ -467,12 +467,12 @@ export function PokerTable() {
 
             <div className="flex justify-center gap-x-16 gap-y-8 flex-wrap">
                 {opponents.map(player => (
-                    <div key={player.id} className="flex flex-col items-center relative h-36 w-40">
-                         <div className="text-center mb-2 z-10">
+                    <div key={player.id} className="flex flex-col items-center relative pt-12">
+                         <div className="absolute top-0 text-center mb-2 z-10">
                             <div className="text-lg font-bold text-white/90 font-headline">{player.name}</div>
                             <div className="text-md font-bold text-accent">{t('Stack')}: ${player.stack}</div>
                         </div>
-                        <div className="flex space-x-2 h-24 items-center -mt-4">
+                        <div className="flex space-x-2 h-24 items-center">
                              {player.hand.length > 0 ? player.hand.map((card, i) => 
                                 <PlayingCard key={i} {...card} hidden={!player.showHand && gameState !== 'showdown'}/>
                             ) : (
@@ -505,12 +505,12 @@ export function PokerTable() {
             </div>
 
             {userPlayer && (
-                 <div className="flex flex-col items-center relative h-36 w-40">
-                    <div className="text-center mb-2 z-10">
+                 <div className="flex flex-col items-center relative pt-12">
+                    <div className="absolute top-0 text-center mb-2 z-10">
                         <div className="text-lg font-bold text-white/90 font-headline">{userPlayer.name}</div>
                         <div className="text-md font-bold text-accent">{t('Stack')}: ${userPlayer.stack}</div>
                     </div>
-                     <div className="flex space-x-2 h-24 items-center -mt-4">
+                     <div className="flex space-x-2 h-24 items-center">
                          {userPlayer.hand.length > 0 ? userPlayer.hand.map((card, i) => 
                             <PlayingCard key={i} {...card} hidden={!userPlayer.showHand && gameState !== 'showdown'} />
                          ) : (
