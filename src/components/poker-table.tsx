@@ -41,12 +41,11 @@ type HandResult = {
 type WinnerInfo = {
     name: string;
     handName: string;
-} | null;
+}[] | null;
 
 export interface PokerTableHandles {
     handlePlayerAction: (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => void;
     handleShowCards: (show: boolean) => void;
-    resetToSetup: () => void;
     dealNewHand: () => void;
 }
 
@@ -235,9 +234,12 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             if (winners.length > 0) {
                 const potPerWinner = Math.floor(finalPot / winners.length);
                 const winnerHandName = winners[0].result.handName;
-                const winnerName = winners.length > 1 ? t("It's a Tie!") : (winners[0].player.isUser ? t('You') : winners[0].player.name);
-
-                setWinnerInfo({ name: winnerName, handName: winnerHandName });
+                
+                const winnerDetails = winners.map(w => ({
+                    name: w.player.isUser ? t('You') : w.player.name,
+                    handName: w.result.handName,
+                }));
+                setWinnerInfo(winnerDetails);
                 
                 setPlayers(currentPlayers => {
                     const updatedPlayers = currentPlayers.map(p => {
@@ -262,89 +264,49 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                 });
             }
         };
-
-        const dealRemainingCards = () => {
-            let tempCommunityCards = [...communityCards];
-            const tempDeck = [...deck];
-            const stages = ['flop', 'turn', 'river'];
-            const cardsToDeal = [3, 1, 1];
-            let currentStageIndex = stages.indexOf(gameState);
-            if (currentStageIndex === -1 && gameState === 'pre-flop') currentStageIndex = 0;
-            else if (currentStageIndex === -1) { // showdown from pre-flop
-                showdownAction();
-                return;
-            }
-
-            if (communityCards.length < 3) {
-                tempCommunityCards.push(...tempDeck.splice(0, 3 - tempCommunityCards.length));
-            }
-             if (communityCards.length < 4) {
-                tempCommunityCards.push(...tempDeck.splice(0, 1));
-            }
-            if (communityCards.length < 5) {
-                tempCommunityCards.push(tempDeck.pop()!);
-            }
-            setDeck(tempDeck);
-            setCommunityCards(tempCommunityCards);
-            setTimeout(showdownAction, 1000);
-        }
-
-        const activePlayers = players.filter(p => !p.hasFolded);
-        const allInPlayers = activePlayers.filter(p => p.isAllIn);
-
-        if (activePlayers.length - allInPlayers.length <= 1) {
-             dealRemainingCards();
-        } else {
-            showdownAction();
-        }
-
-
-    }, [pot, communityCards, gameState, findBestHand, t, players, deck]);
+        showdownAction();
+    }, [pot, communityCards, gameState, findBestHand, t, players]);
     
     const advanceRound = useCallback(() => {
-        setPlayers(prevPlayers => {
-            const currentPot = pot + prevPlayers.reduce((sum, p) => sum + p.currentBet, 0);
-            setPot(currentPot);
-    
-            const playersForNextRound = prevPlayers.map(p => ({
-                ...p,
-                currentBet: 0,
-                hasActed: p.hasFolded || p.isAllIn,
-            }));
-    
-            let newGameState: GameState = gameState;
-            let newCommunityCards = [...communityCards];
-            let newDeck = [...deck];
+        const newPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
+        setPot(newPot);
 
-            switch (gameState) {
-                case 'pre-flop':
-                    newGameState = 'flop';
-                    newCommunityCards = newDeck.splice(0, 3);
-                    break;
-                case 'flop':
-                    newGameState = 'turn';
-                    newCommunityCards.push(newDeck.shift()!);
-                    break;
-                case 'turn':
-                    newGameState = 'river';
-                    newCommunityCards.push(newDeck.shift()!);
-                    break;
-                case 'river':
-                    handleShowdown();
-                    return prevPlayers; // Return early
-            }
-            
-            setGameState(newGameState);
-            setCommunityCards(newCommunityCards);
-            setDeck(newDeck);
+        const playersForNextRound = players.map(p => ({
+            ...p,
+            currentBet: 0,
+            hasActed: p.hasFolded || p.isAllIn,
+        }));
+
+        let newGameState: GameState = gameState;
+        let newCommunityCards = [...communityCards];
+        let newDeck = [...deck];
+
+        switch (gameState) {
+            case 'pre-flop':
+                newGameState = 'flop';
+                newCommunityCards = newDeck.splice(0, 3);
+                break;
+            case 'flop':
+                newGameState = 'turn';
+                newCommunityCards.push(newDeck.shift()!);
+                break;
+            case 'turn':
+                newGameState = 'river';
+                newCommunityCards.push(newDeck.shift()!);
+                break;
+            case 'river':
+                handleShowdown();
+                return;
+        }
+        
+        setGameState(newGameState);
+        setCommunityCards(newCommunityCards);
+        setDeck(newDeck);
+        setPlayers(playersForNextRound);
+        const firstPlayerToAct = playersForNextRound.find(p => !p.hasFolded && !p.isAllIn);
+        setCurrentPlayerId(firstPlayerToAct ? firstPlayerToAct.id : null);
     
-            const firstPlayerToAct = playersForNextRound.find(p => !p.hasFolded && !p.isAllIn);
-            setCurrentPlayerId(firstPlayerToAct ? firstPlayerToAct.id : null);
-            
-            return playersForNextRound;
-        });
-    
-    }, [gameState, deck, handleShowdown, pot, communityCards]);
+    }, [gameState, deck, handleShowdown, pot, communityCards, players]);
 
     const runOpponentActions = useCallback((actingPlayer: Player) => {
         setTimeout(() => {
@@ -484,21 +446,34 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
              setTimeout(() => handleShowdown(), 500);
             return;
         }
-
+        
         const activePlayers = players.filter(p => !p.hasFolded && !p.isAllIn);
+        const allInPlayers = players.filter(p => p.isAllIn && !p.hasFolded);
         const allHaveActed = activePlayers.length > 0 && activePlayers.every(p => p.hasActed);
-
-        if (allHaveActed) {
+        
+        if (allHaveActed || activePlayers.length === 0) {
             const highestBet = Math.max(...players.map(p => p.currentBet));
             const allBetsMatched = activePlayers.every(p => p.currentBet === highestBet);
-            
-            if (allBetsMatched) {
-                const nonAllInPlayers = players.filter(p => !p.isAllIn && !p.hasFolded);
-                if (nonAllInPlayers.length < 2 && gameState !== 'pre-flop') {
-                     setTimeout(() => handleShowdown(), 500);
-                     return;
+
+            if (allBetsMatched || activePlayers.length === 0) {
+                 if (allInPlayers.length > 0 && nonFoldedPlayers.length - allInPlayers.length <= 1) {
+                    let tempDeck = [...deck];
+                    let tempCommunityCards = [...communityCards];
+                    const cardsToDealCount = 5 - tempCommunityCards.length;
+                    if(cardsToDealCount > 0){
+                        tempCommunityCards.push(...tempDeck.splice(0, cardsToDealCount));
+                        setCommunityCards(tempCommunityCards);
+                        setDeck(tempDeck);
+                    }
+                    setTimeout(() => handleShowdown(), 1000);
+                    return;
                 }
-                advanceRound();
+                
+                if(gameState !== 'river'){
+                    advanceRound();
+                } else {
+                    handleShowdown();
+                }
                 return;
             }
         }
@@ -524,7 +499,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
              }
         }
     
-    }, [players, gameState, currentPlayerId, advanceRound, handleShowdown, runOpponentActions, t, toast]);
+    }, [players, gameState, currentPlayerId, advanceRound, handleShowdown, runOpponentActions, t, toast, deck, communityCards]);
 
 
     const handlePlayerAction = (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => {
@@ -561,35 +536,42 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                 }
             } else if (action === 'bet') {
                 const betAmountValue = amount ?? 0;
-
-                if (betAmountValue <= 0) {
-                    toast({ variant: "destructive", title: t('Invalid Bet'), description: t('Bet amount must be positive.') });
-                    return updatedPlayers;
-                }
-
-                if (betAmountValue % 5 !== 0) {
-                     toast({ variant: "destructive", title: t('Invalid Bet'), description: 'Bet must be in increments of 5.' });
-                     return updatedPlayers;
-                }
                 
-                const totalBet = user.currentBet + betAmountValue;
-                if (totalBet < oldHighestBet && betAmountValue < user.stack) {
-                    toast({ variant: "destructive", title: t('Invalid Bet'), description: `Minimum bet is ${oldHighestBet}.` });
-                    return updatedPlayers;
-                }
-
                 if (betAmountValue > user.stack) {
                     toast({ variant: "destructive", title: t('Not enough chips'), description: t('You cannot bet more than you have.') });
                     return updatedPlayers;
                 }
-                
-                updatedUser.stack -= betAmountValue;
-                updatedUser.currentBet += betAmountValue;
 
-                if (updatedUser.stack === 0) {
+                if(amount === user.stack) { // All-in
+                    updatedUser.stack = 0;
+                    updatedUser.currentBet += betAmountValue;
                     updatedUser.isAllIn = true;
+                    toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
+                } else {
+                    if (betAmountValue <= 0) {
+                        toast({ variant: "destructive", title: t('Invalid Bet'), description: t('Bet amount must be positive.') });
+                        return updatedPlayers;
+                    }
+
+                    if (betAmountValue % 5 !== 0) {
+                         toast({ variant: "destructive", title: t('Invalid Bet'), description: 'Bet must be in increments of 5.' });
+                         return updatedPlayers;
+                    }
+                    
+                    const totalBet = user.currentBet + betAmountValue;
+                    if (totalBet < oldHighestBet && betAmountValue < user.stack) {
+                        toast({ variant: "destructive", title: t('Invalid Bet'), description: `Minimum bet is ${oldHighestBet}.` });
+                        return updatedPlayers;
+                    }
+                    
+                    updatedUser.stack -= betAmountValue;
+                    updatedUser.currentBet += betAmountValue;
+
+                    if (updatedUser.stack === 0) {
+                        updatedUser.isAllIn = true;
+                    }
+                    toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
                 }
-                toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
             }
             
             updatedPlayers[userIndex] = updatedUser;
@@ -638,7 +620,6 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     useImperativeHandle(ref, () => ({
         handlePlayerAction,
         handleShowCards,
-        resetToSetup,
         dealNewHand
     }));
 
@@ -651,14 +632,24 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             gameOver,
         });
     }, [players, gameState, canUserAct, isDealing, gameOver, onStateChange]);
-
+    
     const getWinnerTitle = () => {
-        if (!winnerInfo) return '';
-        if (winnerInfo.name === t("It's a Tie!")) {
+        if (!winnerInfo || winnerInfo.length === 0) return '';
+        if (winnerInfo.length > 1) {
             return t("It's a Tie!");
         }
-        return t('{name} wins!', { name: winnerInfo.name });
+        return t('{name} wins!', { name: winnerInfo[0].name });
     };
+
+    const getWinnerDescription = () => {
+        if (!winnerInfo || winnerInfo.length === 0) return '';
+        const handName = winnerInfo[0].handName;
+        if (winnerInfo.length > 1) {
+            const names = winnerInfo.map(w => w.name).join(', ');
+            return `${names} ${t('tie with a {handName}', {handName})}`;
+        }
+        return t('With a {handName}', { handName });
+    }
 
     return (
         <div className="w-full h-full aspect-[9/16] md:aspect-[16/10] bg-primary rounded-3xl p-4 flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
@@ -751,7 +742,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                            {getWinnerTitle()}
                         </AlertDialogTitle>
                         <AlertDialogDescription className="text-center text-lg">
-                           {winnerInfo && t('With a {handName}', { handName: winnerInfo.handName })}
+                           {getWinnerDescription()}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

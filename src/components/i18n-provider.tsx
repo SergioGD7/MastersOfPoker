@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
@@ -42,7 +43,7 @@ const translations = {
         'You win!': 'You win!',
         'You won the pot of ${pot}.': 'You won the pot of ${pot}.',
         "{name} wins.": "{name} wins.",
-        "{name} wins!": "{name} wins!",
+        "{name} wins!": "¡{name} gana!",
         '{name} won the pot of ${pot}.': '{name} won the pot of ${pot}.',
         'Number of players': 'Number of players',
         'Players': 'Players',
@@ -83,6 +84,7 @@ const translations = {
         "It's a Tie!": "It's a Tie!",
         "With a {handName}": "With a {handName}",
         'Tie': 'Tie',
+        'tie with a {handName}': 'tie with a {handName}',
     },
     es: {
         'Masters of Poker': 'Maestros del Poker',
@@ -97,8 +99,8 @@ const translations = {
         'Fold': 'Retirarse',
         'Check': 'Pasar',
         'Bet': 'Apostar',
-        'Call {amount}': 'Igualar ${amount}',
-        'You call {amount}': 'Igualas ${amount}',
+        'Call {amount}': 'Igualar {amount}',
+        'You call {amount}': 'Igualas {amount}',
         'New Hand': 'Nueva Mano',
         'Show My Cards': 'Mostrar Mis Cartas',
         'Hide My Cards': 'Ocultar Mis Cartas',
@@ -163,6 +165,7 @@ const translations = {
         "It's a Tie!": "¡Es un empate!",
         "With a {handName}": "Con un {handName}",
         'Tie': 'Empate',
+        'tie with a {handName}': 'empatan con {handName}',
     }
 };
 
@@ -187,7 +190,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
         if (params) {
             Object.entries(params).forEach(([paramKey, value]) => {
-                const regex = new RegExp(`\\$\\{\\s*${paramKey}\\s*\\}`, 'g');
+                const regex = new RegExp(`\\{\\s*${paramKey}\\s*\\}`, 'g');
                 translation = translation.replace(regex, String(value));
             });
         }
@@ -208,5 +211,3 @@ export function useI18n() {
     }
     return context;
 }
-
-    
