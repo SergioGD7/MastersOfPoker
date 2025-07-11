@@ -1,7 +1,7 @@
 
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useImperativeHandle } from 'react';
 import { PlayingCard, type Rank, type Suit } from "@/components/playing-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ const suits: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 const rankToValue: Record<Rank, number> = { 'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
 
 type Card = {rank: Rank, suit: Suit};
-type Player = {
+export type Player = {
     id: number;
     name: string;
     hand: Card[];
@@ -31,7 +31,7 @@ type Player = {
     hasActed: boolean;
 };
 
-type GameStage = 'setup' | 'dealing' | 'pre-flop' | 'flop' | 'turn' | 'river' | 'showdown';
+export type GameState = 'setup' | 'dealing' | 'pre-flop' | 'flop' | 'turn' | 'river' | 'showdown';
 
 type HandResult = {
   rank: number; // 9: Royal Flush, ..., 1: High Card
@@ -44,6 +44,20 @@ type WinnerInfo = {
     handName: string;
 } | null;
 
+export interface PokerTableHandles {
+    players: Player[];
+    gameState: GameState;
+    canUserAct: boolean;
+    isDealing: boolean;
+    gameOver: boolean;
+    handlePlayerAction: (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => void;
+    dealNewHand: () => void;
+    handleShowCards: (show: boolean) => void;
+}
+
+interface PokerTableProps {
+    setPokerTable: (handles: PokerTableHandles) => void;
+}
 
 function createDeck(): Card[] {
     return ranks.flatMap(rank => suits.map(suit => ({ rank, suit })));
@@ -67,16 +81,15 @@ const ChipStack = ({ amount }: { amount: number }) => {
     );
 };
 
-export function PokerTable() {
+export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
     const { t } = useI18n();
-    const [gameState, setGameState] = useState<GameStage>('setup');
+    const [gameState, setGameState] = useState<GameState>('setup');
     const [pot, setPot] = useState(0);
     const [players, setPlayers] = useState<Player[]>([]);
     const [numPlayers, setNumPlayers] = useState(2);
     const [communityCards, setCommunityCards] = useState<Card[]>([]);
     const [deck, setDeck] = useState<Card[]>([]);
     const [isDealing, setIsDealing] = useState(false);
-    const [betAmount, setBetAmount] = useState<number | ''>(20);
     const { toast } = useToast();
     const [currentPlayerId, setCurrentPlayerId] = useState<number | null>(null);
     const [winnerInfo, setWinnerInfo] = useState<WinnerInfo>(null);
@@ -251,7 +264,7 @@ export function PokerTable() {
     
     const advanceRound = useCallback(() => {
         let newCommunityCards = [...communityCards];
-        let newGameState: GameStage = gameState;
+        let newGameState: GameState = gameState;
     
         switch (gameState) {
             case 'pre-flop':
@@ -423,7 +436,6 @@ export function PokerTable() {
     useEffect(() => {
         if (['setup', 'dealing', 'showdown'].includes(gameState) || currentPlayerId === null) return;
     
-        const activePlayers = players.filter(p => !p.hasFolded && !p.isAllIn);
         const nonFoldedPlayers = players.filter(p => !p.hasFolded);
 
         if (nonFoldedPlayers.length <= 1) {
@@ -431,6 +443,7 @@ export function PokerTable() {
             return;
         }
 
+        const activePlayers = players.filter(p => !p.hasFolded && !p.isAllIn);
         const allHaveActed = activePlayers.length > 0 && activePlayers.every(p => p.hasActed);
         if (allHaveActed) {
             const highestBet = Math.max(...activePlayers.map(p => p.currentBet));
@@ -500,7 +513,7 @@ export function PokerTable() {
                 toast({ description: `You call ${callAmount}` });
             }
         } else if (action === 'bet') {
-            const betAmountValue = amount ?? (typeof betAmount === 'number' ? betAmount : 0);
+            const betAmountValue = amount ?? 0;
 
             if (betAmountValue <= 0) {
                 toast({ variant: "destructive", title: t('Invalid Bet'), description: t('Bet amount must be positive.') });
@@ -563,20 +576,19 @@ export function PokerTable() {
         }
         return userPlayer.id === currentPlayerId;
     }, [userPlayer, isDealing, gameState, currentPlayerId]);
-
-    const highestBet = useMemo(() => Math.max(...players.map(p => p.currentBet)), [players]);
-    
-    const canUserCheckOrCall = useMemo(() => {
-        if (!userPlayer) return { canCheck: false, canCall: false, callAmount: 0 };
-        const amountToCall = highestBet - userPlayer.currentBet;
-        return {
-            canCheck: amountToCall <= 0,
-            canCall: amountToCall > 0,
-            callAmount: amountToCall,
-        };
-    }, [userPlayer, highestBet]);
     
     const totalPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
+
+    useImperativeHandle(setPokerTable as any, () => ({
+        players,
+        gameState,
+        canUserAct,
+        isDealing,
+        gameOver,
+        handlePlayerAction,
+        dealNewHand,
+        handleShowCards,
+    }));
 
     return (
         <div className="w-full h-full aspect-[9/16] md:aspect-[16/10] bg-primary rounded-3xl p-4 flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
@@ -659,29 +671,6 @@ export function PokerTable() {
                         {userPlayer.currentBet > 0 && <ChipStack amount={userPlayer.currentBet} />}
                     </div>
                 )}
-
-                {/* Action Buttons */}
-                <div className="w-full flex flex-col items-center gap-2">
-                    <div className="flex flex-wrap justify-center items-center gap-2">
-                         <Button onClick={() => handlePlayerAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
-                        {canUserCheckOrCall.canCheck ? (
-                            <Button onClick={() => handlePlayerAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
-                        ) : (
-                            <Button onClick={() => handlePlayerAction('call')} disabled={!canUserAct}>
-                                Call ${canUserCheckOrCall.callAmount}
-                            </Button>
-                        )}
-                         <div className="flex items-center gap-2">
-                            <Button onClick={() => handlePlayerAction('bet')} disabled={!canUserAct}>{t('Bet')}</Button>
-                            <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-20 bg-background/80" disabled={!canUserAct} step="5" />
-                        </div>
-                        <Button onClick={() => handlePlayerAction('bet', userPlayer?.stack)} variant="destructive" className="bg-red-800 hover:bg-red-700" disabled={!canUserAct || !userPlayer?.stack}>All-in</Button>
-                    </div>
-                     <div className="flex flex-wrap justify-center items-center gap-2">
-                        {gameState === 'showdown' && <Button onClick={dealNewHand} className="bg-accent hover:bg-accent/90" disabled={gameOver}>{t('New Hand')}</Button>}
-                        <Button onClick={() => handleShowCards(userPlayer ? !userPlayer.showHand : false)} variant="outline" disabled={isDealing || gameState === 'setup' || gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
-                    </div>
-                </div>
             </div>
 
 
@@ -703,5 +692,3 @@ export function PokerTable() {
         </div>
     );
 }
-
-    

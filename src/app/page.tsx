@@ -1,17 +1,41 @@
 'use client'
 
+import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HandRankings } from "@/components/hand-rankings";
 import { StatTracker } from "@/components/stat-tracker";
-import { PokerTable } from "@/components/poker-table";
+import { PokerTable, type PokerTableHandles } from "@/components/poker-table";
 import { LogoIcon } from "@/components/icons";
 import { useI18n } from "@/components/i18n-provider";
+import type { Player, GameState } from "@/components/poker-table";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function Home() {
   const { t } = useI18n();
+  const [pokerTable, setPokerTable] = useState<PokerTableHandles | null>(null);
+  const [betAmount, setBetAmount] = useState<number | ''>(20);
+  
+  const canUserAct = pokerTable?.canUserAct ?? false;
+  const userPlayer = pokerTable?.players.find(p => p.isUser);
+  const highestBet = useMemo(() => Math.max(...(pokerTable?.players.map(p => p.currentBet) ?? [0])), [pokerTable?.players]);
+  
+  const canUserCheckOrCall = useMemo(() => {
+      if (!userPlayer) return { canCheck: false, canCall: false, callAmount: 0 };
+      const amountToCall = highestBet - userPlayer.currentBet;
+      return {
+          canCheck: amountToCall <= 0,
+          canCall: amountToCall > 0,
+          callAmount: amountToCall,
+      };
+  }, [userPlayer, highestBet]);
+  
+  const handleAction = (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => {
+    pokerTable?.handlePlayerAction(action, amount);
+  };
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-2 md:p-8 pb-32 md:pb-8">
+    <main className="flex flex-col items-center justify-center min-h-screen p-2 md:p-8">
       <header className="w-full max-w-7xl mx-auto flex items-center justify-center mb-4 md:mb-8">
         <LogoIcon className="h-8 w-8 md:h-10 md:w-10 text-accent" />
         <h1 className="text-3xl md:text-5xl font-headline ml-2 md:ml-4 text-center text-gray-100">
@@ -27,7 +51,32 @@ export default function Home() {
             <TabsTrigger value="tracker">{t('Stat Tracker')}</TabsTrigger>
           </TabsList>
           <TabsContent value="visualizer" className="mt-4 md:mt-6">
-            <PokerTable />
+             <div className="flex flex-col items-center">
+                <PokerTable setPokerTable={setPokerTable} />
+                {pokerTable && pokerTable.gameState !== 'setup' && userPlayer && (
+                  <div className="w-full flex flex-col items-center gap-2 mt-4">
+                    <div className="flex flex-wrap justify-center items-center gap-2">
+                         <Button onClick={() => handleAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
+                        {canUserCheckOrCall.canCheck ? (
+                            <Button onClick={() => handleAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
+                        ) : (
+                            <Button onClick={() => handleAction('call')} disabled={!canUserAct}>
+                                Call ${canUserCheckOrCall.callAmount}
+                            </Button>
+                        )}
+                         <div className="flex items-center gap-2">
+                            <Button onClick={() => handleAction('bet', betAmount || 0)} disabled={!canUserAct}>{t('Bet')}</Button>
+                            <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-20 bg-background/80" disabled={!canUserAct} step="5" />
+                        </div>
+                        <Button onClick={() => handleAction('bet', userPlayer?.stack)} variant="destructive" className="bg-red-800 hover:bg-red-700" disabled={!canUserAct || !userPlayer?.stack}>All-in</Button>
+                    </div>
+                     <div className="flex flex-wrap justify-center items-center gap-2">
+                        {pokerTable.gameState === 'showdown' && <Button onClick={pokerTable.dealNewHand} className="bg-accent hover:bg-accent/90" disabled={pokerTable.gameOver}>{t('New Hand')}</Button>}
+                        <Button onClick={() => pokerTable.handleShowCards(userPlayer ? !userPlayer.showHand : false)} variant="outline" disabled={pokerTable.isDealing || pokerTable.gameState === 'setup' || pokerTable.gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
+                    </div>
+                  </div>
+                )}
+             </div>
           </TabsContent>
           <TabsContent value="rankings" className="mt-4 md:mt-6">
             <HandRankings />
