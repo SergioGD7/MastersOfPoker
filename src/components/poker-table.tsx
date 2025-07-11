@@ -90,7 +90,7 @@ export function PokerTable() {
             // Split pot or other cases
              setPlayers(prevPlayers => prevPlayers.map(p => ({...p, showHand: true})));
         }
-        setPot(finalPot);
+        setPot(0);
 
     }, [players, pot, t, toast]);
     
@@ -390,7 +390,7 @@ export function PokerTable() {
 
     const userPlayer = players.find(p => p.isUser);
     const opponents = players.filter(p => !p.isUser);
-    const gameOver = useMemo(() => players.filter(p => p.stack > 0).length <= 1 && players.length > 1 && gameState === 'showdown', [players, gameState]);
+    const gameOver = useMemo(() => players.length > 1 && players.filter(p => p.stack > 0).length <= 1 && gameState === 'showdown', [players, gameState]);
 
     const canUserAct = useMemo(() => {
         if (!userPlayer || userPlayer.hasFolded || userPlayer.isAllIn || userPlayer.hasActed) return false;
@@ -416,20 +416,20 @@ export function PokerTable() {
               </Select>
             </div>
 
-            <div className="flex justify-center gap-x-8 gap-y-16 flex-wrap">
+            <div className="flex justify-center gap-x-8 gap-y-4 flex-wrap">
                 {opponents.map(player => (
-                    <div key={player.id} className="flex flex-col items-center relative">
+                    <div key={player.id} className="flex flex-col items-center relative h-36">
                         <div className="text-lg font-bold text-white/90 mb-1 font-headline">{player.name}</div>
                         <div className="text-md font-bold text-accent mb-2">{t('Stack')}: ${player.stack}</div>
-                        <div className="flex space-x-2 h-28 items-center">
+                        <div className="flex space-x-2 h-20 items-center">
                              {player.hand.length > 0 ? player.hand.map((card, i) => 
                                 <div key={i} className="animate-in fade-in duration-300">
                                    <PlayingCard {...card} hidden={!player.showHand && gameState !== 'showdown'}/>
                                 </div>
                             ) : (
                                 <>
-                                   <div className="w-16 h-24 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                                   <div className="w-16 h-24 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                   <div className="w-12 h-16 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                   <div className="w-12 h-16 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
                                 </>
                             )}
                         </div>
@@ -440,11 +440,11 @@ export function PokerTable() {
 
             <div className="flex flex-col items-center space-y-4">
                  {gameState === 'setup' ? (
-                     <div className="flex justify-center items-center h-36 min-h-[9rem]">
+                     <div className="flex justify-center items-center h-24 min-h-[6rem]">
                         <Button onClick={dealNewHand} size="lg" className="bg-accent hover:bg-accent/90">{t('Start Game')}</Button>
                     </div>
                 ) : (
-                    <div className="flex space-x-2 h-36 min-h-[9rem] items-center">
+                    <div className="flex space-x-2 h-24 min-h-[6rem] items-center">
                         {displayedCommunityCards().map((card, i) => (
                              <div key={`${card.rank}-${card.suit}-${i}`} className="animate-in fade-in-0 zoom-in-95 duration-500" style={{animationDelay: `${i * 100}ms`}}>
                                 <PlayingCard {...card} />
@@ -458,16 +458,16 @@ export function PokerTable() {
             </div>
 
             {userPlayer && (
-                <div className="flex flex-col items-center relative">
-                    <div className="flex space-x-2 mb-2 h-28 items-center">
+                <div className="flex flex-col items-center relative h-36">
+                    <div className="flex space-x-2 mb-2 h-20 items-center">
                          {userPlayer.hand.length > 0 ? userPlayer.hand.map((card, i) => 
                             <div key={i} className="animate-in fade-in duration-300">
                                <PlayingCard {...card} hidden={!userPlayer.showHand && gameState !== 'showdown'} />
                             </div>
                          ) : (
                             <>
-                               <div className="w-16 h-24 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                               <div className="w-16 h-24 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                               <div className="w-12 h-16 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                               <div className="w-12 h-16 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
                             </>
                          )}
                     </div>

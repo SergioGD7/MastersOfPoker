@@ -31,7 +31,7 @@ export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCa
   if (hidden) {
     return (
         <div className={cn(
-            "w-24 h-36 rounded-lg bg-blue-800 border-2 border-blue-900 flex items-center justify-center",
+            "w-12 h-20 md:w-16 md:h-24 rounded-lg bg-blue-800 border-2 border-blue-900 flex items-center justify-center",
             "bg-gradient-to-br from-blue-700 to-blue-900 shadow-lg",
             className
         )}>
@@ -44,19 +44,19 @@ export function PlayingCard({ rank, suit, className, hidden = false }: PlayingCa
 
   return (
     <div className={cn(
-        "relative w-24 h-36 rounded-lg bg-white border border-neutral-300 shadow-lg p-1 font-headline",
+        "relative w-12 h-20 md:w-16 md:h-24 rounded-lg bg-white border border-neutral-300 shadow-lg p-1 font-headline",
         className
     )}>
       <div className="absolute top-1 left-1 flex flex-col items-center leading-none">
-        <span className={cn("text-2xl font-bold", colorClass)}>{rank}</span>
-        <span className={cn("text-lg")}>{suitEmoji}</span>
+        <span className={cn("text-xl font-bold", colorClass)}>{rank}</span>
+        <span className={cn("text-sm")}>{suitEmoji}</span>
       </div>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className={cn("text-5xl")}>{suitEmoji}</span>
+        <span className={cn("text-3xl md:text-4xl")}>{suitEmoji}</span>
       </div>
       <div className="absolute bottom-1 right-1 flex flex-col items-center leading-none rotate-180">
-        <span className={cn("text-2xl font-bold", colorClass)}>{rank}</span>
-        <span className={cn("text-lg")}>{suitEmoji}</span>
+        <span className={cn("text-xl font-bold", colorClass)}>{rank}</span>
+        <span className={cn("text-sm")}>{suitEmoji}</span>
       </div>
     </div>
   );
