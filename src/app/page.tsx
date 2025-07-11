@@ -62,7 +62,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-2 md:p-8">
+    <main className="flex flex-col items-center justify-center min-h-screen p-2 md:p-8 pb-32 md:pb-8">
       <header className="w-full max-w-7xl mx-auto flex items-center justify-center mb-4 md:mb-8">
         <LogoIcon className="h-8 w-8 md:h-10 md:w-10 text-accent" />
         <h1 className="text-3xl md:text-5xl font-headline ml-2 md:ml-4 text-center text-gray-100">
@@ -100,7 +100,7 @@ export default function Home() {
                   <div className="flex flex-wrap justify-center items-center gap-2 mt-2">
                     {tableState.gameState === 'showdown' && <Button onClick={handleDealNewHand} className="bg-accent hover:bg-accent/90" disabled={tableState.gameOver}>{t('New Hand')}</Button>}
                      {tableState.gameOver && <Button onClick={handleReset} className="bg-accent hover:bg-accent/90">{t('New Hand')}</Button>}
-                    <Button onClick={handleShowCards} variant="outline" disabled={tableState.isDealing || tableState.gameState === 'setup' || tableState.gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
+                    <Button onClick={handleShowCards} variant="outline" disabled={tableState.isDealing || tableState.gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
                   </div>
                 </div>
               )}
