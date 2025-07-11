@@ -182,12 +182,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const t = (key: TranslationKey, params?: Record<string, string | number>): string => {
-        let translation = translations[locale][key] || translations['en'][key];
+        let translation = (translations[locale] && translations[locale][key]) || translations['en'][key];
         if (!translation) return key;
 
         if (params) {
             Object.entries(params).forEach(([paramKey, value]) => {
-                const regex = new RegExp(`\\{\\s*${paramKey}\\s*\\}`, 'g');
+                const regex = new RegExp(`\\$\\{\\s*${paramKey}\\s*\\}`, 'g');
                 translation = translation.replace(regex, String(value));
             });
         }
