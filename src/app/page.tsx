@@ -44,7 +44,7 @@ export default function Home() {
   };
   
   const handleDealNewHand = () => {
-    pokerTableRef.current?.resetToSetup();
+    pokerTableRef.current?.dealNewHand();
   }
 
   const handleShowCards = () => {

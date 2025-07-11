@@ -48,6 +48,7 @@ export interface PokerTableHandles {
     handlePlayerAction: (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => void;
     handleShowCards: (show: boolean) => void;
     resetToSetup: () => void;
+    dealNewHand: () => void;
 }
 
 interface PokerTableProps {
@@ -129,21 +130,22 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
 
         const uniqueValues = Array.from(new Set(cardValues));
         const isStraight = uniqueValues.length >= 5 && (uniqueValues[0] - uniqueValues[4] === 4) ||
-                           JSON.stringify(uniqueValues.slice(0,5)) === JSON.stringify([14, 5, 4, 3, 2]); // Ace-low straight
+                           (JSON.stringify(uniqueValues.slice(0,5)) === JSON.stringify([14, 5, 4, 3, 2])); // Ace-low straight
         
-        const straightHighCard = (JSON.stringify(uniqueValues.slice(0,5)) === JSON.stringify([14, 5, 4, 3, 2])) ? 5 : uniqueValues[0];
-        
+        const straightValues = isStraight ? (uniqueValues.slice(0,5).toString() === "14,5,4,3,2" ? [5,4,3,2,1] : uniqueValues.slice(0,5)) : [];
+        const straightHighCard = straightValues.length > 0 ? straightValues[0] : 0;
+
         if (isStraight && isFlush) {
             if (uniqueValues.slice(0,5).every(v => [14,13,12,11,10].includes(v))) return { rank: 9, values: [14], handName: t('Royal Flush') };
             return { rank: 8, values: [straightHighCard], handName: t('Straight Flush') };
         }
-        if (counts[0] === 4) return { rank: 7, values: [fourOfAKind[0], ...cardValues.filter(v => v !== fourOfAKind[0])].slice(0,2), handName: t('Four of a Kind') };
+        if (counts[0] === 4) return { rank: 7, values: [fourOfAKind[0], ...cardValues.filter(v => v !== fourOfAKind[0])].slice(0,1), handName: t('Four of a Kind') };
         if (counts[0] === 3 && counts[1] === 2) return { rank: 6, values: [threeOfAKind[0], pairs[0]], handName: t('Full House') };
         if (isFlush) return { rank: 5, values: cardValues.slice(0,5), handName: t('Flush') };
         if (isStraight) return { rank: 4, values: [straightHighCard], handName: t('Straight') };
-        if (counts[0] === 3) return { rank: 3, values: [threeOfAKind[0], ...cardValues.filter(v => v !== threeOfAKind[0])].slice(0,3), handName: t('Three of a Kind') };
-        if (counts[0] === 2 && counts[1] === 2) return { rank: 2, values: [pairs[0], pairs[1], ...cardValues.filter(v => !pairs.includes(v))].slice(0,3), handName: t('Two Pair') };
-        if (counts[0] === 2) return { rank: 1, values: [pairs[0], ...cardValues.filter(v => v !== pairs[0])].slice(0,4), handName: t('One Pair') };
+        if (counts[0] === 3) return { rank: 3, values: [threeOfAKind[0], ...cardValues.filter(v => v !== threeOfAKind[0])].slice(0,2), handName: t('Three of a Kind') };
+        if (counts[0] === 2 && counts[1] === 2) return { rank: 2, values: [pairs[0], pairs[1], ...cardValues.filter(v => !pairs.includes(v))].slice(0,1), handName: t('Two Pair') };
+        if (counts[0] === 2) return { rank: 1, values: [pairs[0], ...cardValues.filter(v => v !== pairs[0])].slice(0,3), handName: t('One Pair') };
         return { rank: 0, values: cardValues.slice(0,5), handName: t('High Card') };
     };
 
@@ -192,100 +194,118 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     
     const handleShowdown = useCallback(() => {
         if (gameState === 'showdown') return;
+        setGameState('showdown');
         
-        let activePlayers = players.filter(p => !p.hasFolded);
-        const finalPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
+        const showdownAction = () => {
+            let activePlayers = players.filter(p => !p.hasFolded);
+            const finalPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
 
-        let winners: { player: Player, result: HandResult }[] = [];
+            let winners: { player: Player, result: HandResult }[] = [];
 
-        if (activePlayers.length === 1) {
-            winners = [{ player: activePlayers[0], result: { rank: -1, values: [], handName: 'the only one left' } }];
-        } else if (activePlayers.length > 1) {
-            const playerHandResults = activePlayers.map(p => ({ player: p, result: findBestHand(p.hand, communityCards) }));
-            
-            let bestResult = playerHandResults[0].result;
-            let currentWinners = [{ player: playerHandResults[0].player, result: bestResult }];
+            if (activePlayers.length === 1) {
+                winners = [{ player: activePlayers[0], result: { rank: -1, values: [], handName: 'the only one left' } }];
+            } else if (activePlayers.length > 1) {
+                const playerHandResults = activePlayers.map(p => ({ player: p, result: findBestHand(p.hand, communityCards) }));
+                
+                let bestResult = playerHandResults[0].result;
+                let currentWinners = [{ player: playerHandResults[0].player, result: bestResult }];
 
-            for (let i = 1; i < playerHandResults.length; i++) {
-                const currentResult = playerHandResults[i].result;
-                let comparison = currentResult.rank - bestResult.rank;
-                if (comparison === 0 && currentResult.values.length > 0 && bestResult.values.length > 0) {
-                    for(let j=0; j<Math.min(currentResult.values.length, bestResult.values.length); j++) {
-                        if (currentResult.values[j] !== bestResult.values[j]) {
-                            comparison = currentResult.values[j] - bestResult.values[j];
-                            break;
+                for (let i = 1; i < playerHandResults.length; i++) {
+                    const currentResult = playerHandResults[i].result;
+                    let comparison = currentResult.rank - bestResult.rank;
+                    if (comparison === 0 && currentResult.values.length > 0 && bestResult.values.length > 0) {
+                        for(let j=0; j<Math.min(currentResult.values.length, bestResult.values.length); j++) {
+                            if (currentResult.values[j] !== bestResult.values[j]) {
+                                comparison = currentResult.values[j] - bestResult.values[j];
+                                break;
+                            }
                         }
                     }
-                }
 
-                if (comparison > 0) {
-                    bestResult = currentResult;
-                    currentWinners = [{ player: playerHandResults[i].player, result: bestResult }];
-                } else if (comparison === 0) {
-                    currentWinners.push({ player: playerHandResults[i].player, result: currentResult });
+                    if (comparison > 0) {
+                        bestResult = currentResult;
+                        currentWinners = [{ player: playerHandResults[i].player, result: bestResult }];
+                    } else if (comparison === 0) {
+                        currentWinners.push({ player: playerHandResults[i].player, result: currentResult });
+                    }
                 }
+                winners = currentWinners;
             }
-            winners = currentWinners;
-        }
-        
-        setGameState('showdown');
-        setCurrentPlayerId(null);
-
-        if (winners.length > 0) {
-            const potPerWinner = Math.floor(finalPot / winners.length);
-            const winnerHandName = winners[0].result.handName;
-            const winnerName = winners.length > 1 ? t('Tie') : winners[0].player.name;
-
-            setWinnerInfo({ name: winnerName, handName: winnerHandName });
             
-            setPlayers(currentPlayers => {
-                const updatedPlayers = currentPlayers.map(p => {
-                    const isWinner = winners.some(w => w.player.id === p.id);
-                    return {
-                        ...p, 
-                        stack: p.stack + (isWinner ? potPerWinner : 0),
-                        showHand: true,
-                        currentBet: 0,
-                    };
+            setCurrentPlayerId(null);
+
+            if (winners.length > 0) {
+                const potPerWinner = Math.floor(finalPot / winners.length);
+                const winnerHandName = winners[0].result.handName;
+                const winnerName = winners.length > 1 ? t("It's a Tie!") : winners[0].player.name;
+
+                setWinnerInfo({ name: winnerName, handName: winnerHandName });
+                
+                setPlayers(currentPlayers => {
+                    const updatedPlayers = currentPlayers.map(p => {
+                        const isWinner = winners.some(w => w.player.id === p.id);
+                        return {
+                            ...p, 
+                            stack: p.stack + (isWinner ? potPerWinner : 0),
+                            showHand: true,
+                            currentBet: 0,
+                        };
+                    });
+                    setPot(0);
+                    return updatedPlayers.map(p => ({...p, totalBet: 0}));
                 });
-                setPot(0);
-                return updatedPlayers.map(p => ({...p, totalBet: 0}));
-            });
+            } else {
+                setPlayers(currentPlayers => {
+                    const playersWithReturnedBets = currentPlayers.map(p => ({
+                        ...p, stack: p.stack + p.currentBet, currentBet: 0, totalBet: 0, showHand: true
+                    }));
+                    setPot(0);
+                    return playersWithReturnedBets;
+                });
+            }
+        };
+
+        // If we are not on the river, deal remaining cards before showdown
+        const missingCards = 5 - communityCards.length;
+        if (missingCards > 0) {
+            let tempCommunityCards = [...communityCards];
+            const tempDeck = [...deck];
+            for (let i = 0; i < missingCards; i++) {
+                tempCommunityCards.push(tempDeck.shift()!);
+            }
+            setDeck(tempDeck);
+            setCommunityCards(tempCommunityCards);
+
+            // Wait for card animation before showing results
+            setTimeout(showdownAction, 1000);
         } else {
-            setPlayers(currentPlayers => {
-                const playersWithReturnedBets = currentPlayers.map(p => ({
-                    ...p, stack: p.stack + p.currentBet, currentBet: 0, totalBet: 0, showHand: true
-                }));
-                setPot(0);
-                return playersWithReturnedBets;
-            });
+            showdownAction();
         }
 
-    }, [pot, communityCards, gameState, findBestHand, t, players]);
+
+    }, [pot, communityCards, gameState, findBestHand, t, players, deck]);
     
     const advanceRound = useCallback(() => {
-        let newCommunityCards = [...communityCards];
         let newGameState: GameState = gameState;
     
         switch (gameState) {
             case 'pre-flop':
                 newGameState = 'flop';
-                newCommunityCards = deck.slice(0, 3);
+                setCommunityCards(deck.slice(0, 3));
                 break;
             case 'flop':
                 newGameState = 'turn';
-                newCommunityCards = deck.slice(0, 4);
+                setCommunityCards(deck.slice(0, 4));
                 break;
             case 'turn':
                 newGameState = 'river';
-                newCommunityCards = deck.slice(0, 5);
+                setCommunityCards(deck.slice(0, 5));
                 break;
             case 'river':
                 handleShowdown();
                 return;
         }
     
-        setCommunityCards(newCommunityCards);
         setGameState(newGameState);
     
         setPlayers(prevPlayers => {
@@ -305,7 +325,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             return playersForNextRound;
         });
     
-    }, [gameState, communityCards, deck, handleShowdown, pot]);
+    }, [gameState, deck, handleShowdown, pot]);
 
     const runOpponentActions = useCallback((actingPlayer: Player) => {
         setTimeout(() => {
@@ -369,7 +389,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         setWinnerInfo(null);
         const playersWithChips = players.filter(p => p.stack > 0);
         if (players.length > 1 && playersWithChips.length <= 1 && gameState !== 'setup') {
-             setTimeout(() => toast({ title: t('Game Over'), description: t('A player has run out of chips.') }), 0);
+            setTimeout(() => toast({ title: t('Game Over'), description: t('A player has run out of chips.') }), 0);
             setGameState('showdown');
             return;
         }
@@ -421,8 +441,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             if (bbPlayer.stack === 0) bbPlayer.isAllIn = true;
         }
         
-        const finalDeck = tempDeck;
-        setDeck(finalDeck);
+        setDeck(tempDeck); // This will be the community card deck
 
         const finalPlayerState = tempPlayers.map((p, idx) => ({...p, hand: playerHands[idx]}));
         setPlayers(finalPlayerState);
@@ -436,9 +455,8 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     // Main Game Loop Effect
     useEffect(() => {
         if (['setup', 'dealing', 'showdown'].includes(gameState) || currentPlayerId === null) return;
-    
-        const nonFoldedPlayers = players.filter(p => !p.hasFolded);
 
+        const nonFoldedPlayers = players.filter(p => !p.hasFolded);
         if (nonFoldedPlayers.length <= 1) {
              setTimeout(() => handleShowdown(), 1000);
             return;
@@ -450,16 +468,13 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             const highestBet = Math.max(...activePlayers.map(p => p.currentBet));
             const allBetsMatched = activePlayers.every(p => p.currentBet === highestBet);
             
-            const allInPlayers = players.filter(p => p.isAllIn && !p.hasFolded);
-            const nonAllInPlayers = players.filter(p => !p.isAllIn && !p.hasFolded);
-
-            // if all remaining players are all-in, or if only one non-all-in player is left, go to showdown
-            if (nonAllInPlayers.length < 2 && allInPlayers.length > 0) {
-                 setTimeout(() => handleShowdown(), 1000);
-                 return;
-            }
-
             if (allBetsMatched) {
+                // Check if remaining non-all-in players is less than 2
+                const nonAllInPlayers = players.filter(p => !p.isAllIn && !p.hasFolded);
+                if (nonAllInPlayers.length < 2) {
+                     setTimeout(() => handleShowdown(), 1000);
+                     return;
+                }
                 advanceRound();
                 return;
             }
@@ -605,6 +620,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         handlePlayerAction,
         handleShowCards,
         resetToSetup,
+        dealNewHand
     }));
 
     useEffect(() => {
@@ -619,7 +635,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
 
     const getWinnerTitle = () => {
         if (!winnerInfo) return '';
-        if (winnerInfo.name === t('Tie')) {
+        if (winnerInfo.name === t("It's a Tie!")) {
             return t("It's a Tie!");
         }
         return t('{name} wins!', { name: winnerInfo.name });
@@ -720,7 +736,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogAction onClick={() => { setWinnerInfo(null); dealNewHand(); }} className="w-full bg-accent hover:bg-accent/90">{t('New Hand')}</AlertDialogAction>
+                        <AlertDialogAction onClick={() => { setWinnerInfo(null); resetToSetup(); }} className="w-full bg-accent hover:bg-accent/90">{t('New Hand')}</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
