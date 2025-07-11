@@ -78,7 +78,7 @@ export function PokerTable() {
         }));
         setPlayers(initialPlayers);
     }, [t]);
-
+    
     const handleShowdown = useCallback(() => {
         setGameState('showdown');
         setCurrentPlayerId(null);
@@ -461,7 +461,7 @@ export function PokerTable() {
             canCall: amountToCall > 0,
             callAmount: amountToCall,
         };
-    }, [players, userPlayer, highestBet]);
+    }, [userPlayer, highestBet]);
 
     return (
         <div className="w-full aspect-[16/10] bg-primary rounded-3xl p-4 md:p-8 relative flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
@@ -561,5 +561,7 @@ export function PokerTable() {
         </div>
     );
 }
+
+    
 
     
