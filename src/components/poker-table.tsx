@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import React, { useState, useEffect, useCallback, useMemo, useImperativeHandle, forwardRef } from 'react';
@@ -47,6 +48,7 @@ export interface PokerTableHandles {
     handlePlayerAction: (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => void;
     dealNewHand: () => void;
     handleShowCards: (show: boolean) => void;
+    resetToSetup: () => void;
 }
 
 interface PokerTableProps {
@@ -567,6 +569,15 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     const handleShowCards = (show: boolean) => {
         setPlayers(prev => prev.map(p => p.isUser ? { ...p, showHand: show } : p));
     }
+
+    const resetToSetup = () => {
+        setGameState('setup');
+        setPlayers([]);
+        setCommunityCards([]);
+        setPot(0);
+        setCurrentPlayerId(null);
+        setWinnerInfo(null);
+    };
     
     const userPlayer = players.find(p => p.isUser);
     const opponents = players.filter(p => !p.isUser);
@@ -585,6 +596,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         handlePlayerAction,
         dealNewHand,
         handleShowCards,
+        resetToSetup,
     }));
 
     useEffect(() => {

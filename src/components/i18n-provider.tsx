@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
@@ -163,8 +164,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         const browserLang = navigator.language.split('-')[0];
-        if (browserLang === 'es') {
-            setLocale('es');
+        if (browserLang in translations) {
+            setLocale(browserLang as Locale);
         }
     }, []);
 

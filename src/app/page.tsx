@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useMemo, useRef, useCallback } from 'react';
@@ -16,7 +17,6 @@ export default function Home() {
   const pokerTableRef = useRef<PokerTableHandles | null>(null);
   const [betAmount, setBetAmount] = useState<number | ''>(20);
   
-  // State to hold a snapshot of the poker table state for UI updates
   const [tableState, setTableState] = useState<{
     players: Player[];
     gameState: GameState;
@@ -44,7 +44,7 @@ export default function Home() {
   };
   
   const handleDealNewHand = () => {
-    pokerTableRef.current?.dealNewHand();
+    pokerTableRef.current?.resetToSetup();
   }
 
   const handleShowCards = () => {
