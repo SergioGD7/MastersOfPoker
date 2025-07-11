@@ -189,6 +189,8 @@ export function PokerTable() {
 
             if (activePlayers.length === 1) {
                 winners = [{ player: activePlayers[0], result: { rank: -1, values: [], handName: 'the only one left' } }];
+                 setTimeout(() => toast({ title: `${winners[0].player.name} wins!`, description: `${t('{name} wins the pot.', { name: winners[0].player.name })}` }), 500);
+
             } else if (activePlayers.length > 1) {
                 const playerHandResults = activePlayers.map(p => ({ player: p, result: findBestHand(p.hand, communityCards) }));
                 
@@ -245,7 +247,7 @@ export function PokerTable() {
             return playersWithReturnedBets;
         });
 
-    }, [pot, communityCards, gameState, findBestHand, evaluateHand]);
+    }, [pot, communityCards, gameState, findBestHand, evaluateHand, toast, t]);
     
     const advanceRound = useCallback(() => {
         let newCommunityCards = [...communityCards];
@@ -423,7 +425,7 @@ export function PokerTable() {
         const nonFoldedPlayers = players.filter(p => !p.hasFolded);
 
         if (nonFoldedPlayers.length <= 1) {
-            setTimeout(() => handleShowdown(), 1000);
+             setTimeout(() => handleShowdown(), 1000);
             return;
         }
 
@@ -650,14 +652,16 @@ export function PokerTable() {
             
             <div className="absolute bottom-4 inset-x-4 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex flex-wrap justify-center items-center gap-2">
-                    <Button onClick={() => handlePlayerAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
-                    {canUserCheckOrCall.canCheck ? (
-                        <Button onClick={() => handlePlayerAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
-                    ) : (
-                        <Button onClick={() => handlePlayerAction('call')} disabled={!canUserAct}>
-                            Call ${canUserCheckOrCall.callAmount}
-                        </Button>
-                    )}
+                    <div className="flex flex-wrap justify-center gap-2">
+                        <Button onClick={() => handlePlayerAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
+                        {canUserCheckOrCall.canCheck ? (
+                            <Button onClick={() => handlePlayerAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
+                        ) : (
+                            <Button onClick={() => handlePlayerAction('call')} disabled={!canUserAct}>
+                                Call ${canUserCheckOrCall.callAmount}
+                            </Button>
+                        )}
+                    </div>
                     <div className="flex items-center gap-2">
                         <Button onClick={() => handlePlayerAction('bet')} disabled={!canUserAct}>{t('Bet')}</Button>
                         <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-20 md:w-24 bg-background/80" disabled={!canUserAct} step="5" />
@@ -689,3 +693,5 @@ export function PokerTable() {
         </div>
     );
 }
+
+    
