@@ -12,28 +12,37 @@ import { ChipIcon } from './icons';
 
 const ranks: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
 const suits: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
+const rankToValue: Record<Rank, number> = { 'A': 14, 'K': 13, 'Q': 12, 'J': 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
 
+type Card = {rank: Rank, suit: Suit};
 type Player = {
     id: number;
     name: string;
-    hand: {rank: Rank, suit: Suit}[];
+    hand: Card[];
     stack: number;
     isUser: boolean;
     showHand: boolean;
     hasFolded: boolean;
     currentBet: number;
-    totalBet: number; // Total bet in the current hand
+    totalBet: number; 
     isAllIn: boolean;
     hasActed: boolean;
 };
 
 type GameStage = 'setup' | 'dealing' | 'pre-flop' | 'flop' | 'turn' | 'river' | 'showdown';
 
-function createDeck(): {rank: Rank, suit: Suit}[] {
+type HandResult = {
+  rank: number; // 9: Royal Flush, ..., 1: High Card
+  values: number[];
+  handName: string;
+};
+
+
+function createDeck(): Card[] {
     return ranks.flatMap(rank => suits.map(suit => ({ rank, suit })));
 }
 
-function shuffleDeck(deck: {rank: Rank, suit: Suit}[]): {rank: Rank, suit: Suit}[] {
+function shuffleDeck(deck: Card[]): Card[] {
     for (let i = deck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -57,8 +66,8 @@ export function PokerTable() {
     const [pot, setPot] = useState(0);
     const [players, setPlayers] = useState<Player[]>([]);
     const [numPlayers, setNumPlayers] = useState(2);
-    const [communityCards, setCommunityCards] = useState<{rank: Rank, suit: Suit}[]>([]);
-    const [deck, setDeck] = useState<{rank: Rank, suit: Suit}[]>([]);
+    const [communityCards, setCommunityCards] = useState<Card[]>([]);
+    const [deck, setDeck] = useState<Card[]>([]);
     const [isDealing, setIsDealing] = useState(false);
     const [betAmount, setBetAmount] = useState<number | ''>(20);
     const { toast } = useToast();
@@ -80,57 +89,155 @@ export function PokerTable() {
         }));
         setPlayers(initialPlayers);
     }, [t]);
+
+    const evaluateHand = (hand: Card[]): HandResult => {
+        const cardValues = hand.map(c => rankToValue[c.rank]).sort((a, b) => b - a);
+        const suits = hand.map(c => c.suit);
+        const isFlush = new Set(suits).size === 1;
+        
+        const valueCounts: Record<number, number> = cardValues.reduce((acc, val) => {
+            acc[val] = (acc[val] || 0) + 1;
+            return acc;
+        }, {} as Record<number, number>);
+        
+        const counts = Object.values(valueCounts).sort((a, b) => b - a);
+        const pairs = Object.keys(valueCounts).filter(k => valueCounts[parseInt(k)] === 2).map(Number).sort((a,b) => b-a);
+        const threeOfAKind = Object.keys(valueCounts).filter(k => valueCounts[parseInt(k)] === 3).map(Number);
+        const fourOfAKind = Object.keys(valueCounts).filter(k => valueCounts[parseInt(k)] === 4).map(Number);
+
+        const isStraight = cardValues.every((v, i, arr) => i === 0 || v === arr[i-1] - 1) ||
+                           JSON.stringify(cardValues) === JSON.stringify([14, 5, 4, 3, 2]); // Ace-low straight
+        const straightHighCard = (JSON.stringify(cardValues) === JSON.stringify([14, 5, 4, 3, 2])) ? 5 : cardValues[0];
+        
+        if (isStraight && isFlush) {
+            if (cardValues[0] === 14) return { rank: 9, values: [14], handName: t('Royal Flush') };
+            return { rank: 8, values: [straightHighCard], handName: t('Straight Flush') };
+        }
+        if (counts[0] === 4) return { rank: 7, values: [fourOfAKind[0], ...cardValues.filter(v => v !== fourOfAKind[0])], handName: t('Four of a Kind') };
+        if (counts[0] === 3 && counts[1] === 2) return { rank: 6, values: [threeOfAKind[0], pairs[0]], handName: t('Full House') };
+        if (isFlush) return { rank: 5, values: cardValues, handName: t('Flush') };
+        if (isStraight) return { rank: 4, values: [straightHighCard], handName: t('Straight') };
+        if (counts[0] === 3) return { rank: 3, values: [threeOfAKind[0], ...cardValues.filter(v => v !== threeOfAKind[0])], handName: t('Three of a Kind') };
+        if (counts[0] === 2 && counts[1] === 2) return { rank: 2, values: [pairs[0], pairs[1], ...cardValues.filter(v => !pairs.includes(v))], handName: t('Two Pair') };
+        if (counts[0] === 2) return { rank: 1, values: [pairs[0], ...cardValues.filter(v => v !== pairs[0])], handName: t('One Pair') };
+        return { rank: 0, values: cardValues, handName: t('High Card') };
+    };
+
+    const findBestHand = (playerHand: Card[], communityCards: Card[]): HandResult => {
+        const allCards = [...playerHand, ...communityCards];
+        if (allCards.length < 5) return evaluateHand([]);
+
+        let bestHandResult: HandResult = { rank: -1, values: [], handName: '' };
+
+        function getCombinations(array: Card[], size: number): Card[][] {
+            const result: Card[][] = [];
+            function p(t: Card[], i: number) {
+                if (t.length === size) {
+                    result.push(t);
+                    return;
+                }
+                if (i + 1 > array.length) {
+                    return;
+                }
+                p(t.concat(array[i]), i + 1);
+                p(t, i + 1);
+            }
+            p([], 0);
+            return result;
+        }
+
+        const combinations = getCombinations(allCards, 5);
+        for (const combo of combinations) {
+            const result = evaluateHand(combo);
+            if (result.rank > bestHandResult.rank) {
+                bestHandResult = result;
+            } else if (result.rank === bestHandResult.rank) {
+                for (let i = 0; i < result.values.length; i++) {
+                    if (result.values[i] > bestHandResult.values[i]) {
+                        bestHandResult = result;
+                        break;
+                    }
+                    if (result.values[i] < bestHandResult.values[i]) {
+                        break;
+                    }
+                }
+            }
+        }
+        return bestHandResult;
+    }
     
     const handleShowdown = useCallback(() => {
         setGameState('showdown');
         setCurrentPlayerId(null);
         
         setPlayers(currentPlayers => {
-            const activePlayers = currentPlayers.filter(p => !p.hasFolded);
-            if (activePlayers.length === 0) return currentPlayers;
-            
+            let activePlayers = currentPlayers.filter(p => !p.hasFolded);
             const finalPot = pot + currentPlayers.reduce((sum, p) => sum + p.currentBet, 0);
-            
-            let winner: Player | null = null;
+
+            let winners: Player[] = [];
+
             if (activePlayers.length === 1) {
-                winner = activePlayers[0];
-            } else {
-                // Simplified winner determination for multiple players
-                winner = activePlayers[Math.floor(Math.random() * activePlayers.length)];
+                winners = [activePlayers[0]];
+            } else if (activePlayers.length > 1) {
+                const playerHandResults = activePlayers.map(p => ({ player: p, result: findBestHand(p.hand, communityCards) }));
+                
+                let bestResult = playerHandResults[0].result;
+                winners = [playerHandResults[0].player];
+
+                for (let i = 1; i < playerHandResults.length; i++) {
+                    const currentResult = playerHandResults[i].result;
+                    let comparison = currentResult.rank - bestResult.rank;
+                    if (comparison === 0) {
+                        for(let j=0; j<currentResult.values.length; j++) {
+                           if (currentResult.values[j] !== bestResult.values[j]) {
+                               comparison = currentResult.values[j] - bestResult.values[j];
+                               break;
+                           }
+                        }
+                    }
+
+                    if (comparison > 0) {
+                        bestResult = currentResult;
+                        winners = [playerHandResults[i].player];
+                    } else if (comparison === 0) {
+                        winners.push(playerHandResults[i].player);
+                    }
+                }
             }
     
-            if (winner) {
-                if (winner.isUser) {
-                    toast({ title: t('You win!'), description: t('You won the pot of ${pot}.', { pot: finalPot }) });
-                } else {
-                    toast({ title: t('{name} wins.', { name: winner.name }), description: t('{name} won the pot of ${pot}.', { name: winner.name, pot: finalPot }) });
-                }
+            if (winners.length > 0) {
+                const potPerWinner = finalPot / winners.length;
+                
+                winners.forEach(winner => {
+                    if (winner.isUser) {
+                        toast({ title: t('You win!'), description: t('You won the pot of ${pot}.', { pot: potPerWinner }) });
+                    } else {
+                        toast({ title: t('{name} wins.', { name: winner.name }), description: t('{name} won the pot of ${pot}.', { name: winner.name, pot: potPerWinner }) });
+                    }
+                });
+
                 const updatedPlayers = currentPlayers.map(p => {
-                    const isWinner = p.id === winner!.id;
+                    const isWinner = winners.some(w => w.id === p.id);
                     return {
                         ...p, 
-                        stack: isWinner ? p.stack + finalPot : p.stack, // Winner gets the whole pot
+                        stack: p.stack + (isWinner ? potPerWinner : 0),
                         showHand: true,
                         currentBet: 0,
+                        totalBet: 0,
                     };
                 });
                 setPot(0);
-                return updatedPlayers.map(p => ({...p, currentBet: 0, totalBet: 0})); // Reset all bets after assigning pot
+                return updatedPlayers;
             }
 
-             // If no winner, return bets and reset
-             const playersWithReturnedBets = currentPlayers.map(p => ({
-                ...p,
-                stack: p.stack + p.currentBet,
-                currentBet: 0,
-                totalBet: 0,
-                showHand: true
+            const playersWithReturnedBets = currentPlayers.map(p => ({
+                ...p, stack: p.stack + p.currentBet, currentBet: 0, totalBet: 0, showHand: true
             }));
             setPot(0);
             return playersWithReturnedBets;
         });
 
-    }, [pot, t, toast]);
+    }, [pot, t, toast, communityCards, findBestHand, evaluateHand]);
     
     const advanceRound = useCallback(() => {
         let newCommunityCards = [...communityCards];
@@ -180,7 +287,7 @@ export function PokerTable() {
         setTimeout(() => {
             setPlayers(currentPlayers => {
                 let updatedPlayer = currentPlayers.find(p => p.id === actingPlayer.id);
-                if (!updatedPlayer) return currentPlayers;
+                if (!updatedPlayer || updatedPlayer.hasActed) return currentPlayers;
     
                 updatedPlayer = { ...updatedPlayer, hasActed: true };
     
@@ -263,6 +370,7 @@ export function PokerTable() {
             }));
 
         let tempDeck = [...newDeck];
+        const playerHands = playersForNewHand.map(() => [tempDeck.pop()!, tempDeck.pop()!]);
 
         const smallBlind = 10;
         const bigBlind = 20;
@@ -286,15 +394,12 @@ export function PokerTable() {
             if (bbPlayer.stack === 0) bbPlayer.isAllIn = true;
         }
         
-        const playerHands = tempPlayers.map(() => [tempDeck.pop()!, tempDeck.pop()!]);
-
-        // This part of the deck is for community cards
         const finalDeck = tempDeck;
         setDeck(finalDeck);
 
         const finalPlayerState = tempPlayers.map((p, idx) => ({...p, hand: playerHands[idx]}));
         setPlayers(finalPlayerState);
-        setPot(0); // Pot will be calculated based on current bets
+        setPot(0);
         setGameState('pre-flop');
         const firstToActIndex = tempPlayers.length > 2 ? 2 % tempPlayers.length : 0;
         setCurrentPlayerId(finalPlayerState[firstToActIndex]?.id ?? null);
@@ -309,7 +414,7 @@ export function PokerTable() {
         const nonFoldedPlayers = players.filter(p => !p.hasFolded);
 
         if (nonFoldedPlayers.length <= 1) {
-            handleShowdown();
+            setTimeout(() => handleShowdown(), 1000);
             return;
         }
 
@@ -325,27 +430,26 @@ export function PokerTable() {
     
         const actingPlayer = players.find(p => p.id === currentPlayerId);
     
-        if (actingPlayer && !actingPlayer.hasActed && !actingPlayer.hasFolded && !actingPlayer.isAllIn) {
-            if (!actingPlayer.isUser) {
-                runOpponentActions(actingPlayer);
-            }
-        } else {
-            const currentIndex = players.findIndex(p => p.id === currentPlayerId);
-            if (currentIndex === -1) return;
-
-            let nextIndex = (currentIndex + 1) % players.length;
-            let loopCount = 0; // Failsafe to prevent infinite loops
-            while(
-                (players[nextIndex].hasFolded || players[nextIndex].isAllIn || (players[nextIndex].hasActed && Math.max(...players.map(p => p.currentBet)) === players[nextIndex].currentBet) ) && 
-                loopCount < players.length
-            ) {
-                nextIndex = (nextIndex + 1) % players.length;
-                loopCount++;
-            }
-
-            if (players[nextIndex].id !== currentPlayerId) {
-                setCurrentPlayerId(players[nextIndex].id);
-            }
+        if (actingPlayer && !actingPlayer.isUser && !actingPlayer.hasActed && !actingPlayer.hasFolded && !actingPlayer.isAllIn) {
+            runOpponentActions(actingPlayer);
+        } else if(actingPlayer?.hasActed) {
+             const currentIndex = players.findIndex(p => p.id === currentPlayerId);
+             if (currentIndex === -1) return;
+ 
+             let nextIndex = (currentIndex + 1) % players.length;
+             let loopCount = 0;
+             while(loopCount < players.length) {
+                const nextPlayer = players[nextIndex];
+                 if (!nextPlayer.hasFolded && !nextPlayer.isAllIn) {
+                     const highestBet = Math.max(...players.map(p => p.currentBet));
+                     if (!nextPlayer.hasActed || nextPlayer.currentBet < highestBet) {
+                         setCurrentPlayerId(nextPlayer.id);
+                         return;
+                     }
+                 }
+                 nextIndex = (nextIndex + 1) % players.length;
+                 loopCount++;
+             }
         }
     
     }, [players, gameState, currentPlayerId, advanceRound, handleShowdown, runOpponentActions]);
@@ -354,7 +458,7 @@ export function PokerTable() {
     const handlePlayerAction = (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => {
         let updatedPlayers = [...players];
         const userIndex = updatedPlayers.findIndex(p => p.isUser);
-        if (userIndex === -1) return;
+        if (userIndex === -1 || !canUserAct) return;
 
         const user = updatedPlayers[userIndex];
         let updatedUser = { ...user, hasActed: true };
@@ -372,7 +476,6 @@ export function PokerTable() {
         } else if (action === 'call') {
             const amountToCall = highestBet - user.currentBet;
             if (amountToCall <= 0) {
-                // This is equivalent to a check
                 toast({ description: t('You check') });
             } else {
                 const callAmount = Math.min(amountToCall, user.stack);
@@ -430,9 +533,6 @@ export function PokerTable() {
         }
         
         setPlayers(updatedPlayers);
-        
-        const nextPlayerIndex = (userIndex + 1) % updatedPlayers.length;
-        setCurrentPlayerId(updatedPlayers[nextPlayerIndex].id);
     };
 
     const handleShowCards = (show: boolean) => {
@@ -562,3 +662,5 @@ export function PokerTable() {
         </div>
     );
 }
+
+    
