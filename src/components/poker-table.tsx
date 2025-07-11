@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from './i18n-provider';
 import { ChipIcon } from './icons';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction } from './ui/alert-dialog';
+
 
 const ranks: Rank[] = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
 const suits: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
@@ -36,6 +38,11 @@ type HandResult = {
   values: number[];
   handName: string;
 };
+
+type WinnerInfo = {
+    name: string;
+    handName: string;
+} | null;
 
 
 function createDeck(): Card[] {
@@ -72,6 +79,7 @@ export function PokerTable() {
     const [betAmount, setBetAmount] = useState<number | ''>(20);
     const { toast } = useToast();
     const [currentPlayerId, setCurrentPlayerId] = useState<number | null>(null);
+    const [winnerInfo, setWinnerInfo] = useState<WinnerInfo>(null);
 
     const initializePlayers = useCallback((count: number) => {
         const initialPlayers: Player[] = Array.from({ length: count }, (_, i) => ({
@@ -105,8 +113,10 @@ export function PokerTable() {
         const threeOfAKind = Object.keys(valueCounts).filter(k => valueCounts[parseInt(k)] === 3).map(Number);
         const fourOfAKind = Object.keys(valueCounts).filter(k => valueCounts[parseInt(k)] === 4).map(Number);
 
-        const isStraight = cardValues.every((v, i, arr) => i === 0 || v === arr[i-1] - 1) ||
-                           JSON.stringify(cardValues) === JSON.stringify([14, 5, 4, 3, 2]); // Ace-low straight
+        const uniqueValues = Array.from(new Set(cardValues));
+        const isStraight = uniqueValues.length >= 5 && (uniqueValues[0] - uniqueValues[4] === 4) ||
+                           JSON.stringify(uniqueValues.slice(0,5)) === JSON.stringify([14, 5, 4, 3, 2]); // Ace-low straight
+        
         const straightHighCard = (JSON.stringify(cardValues) === JSON.stringify([14, 5, 4, 3, 2])) ? 5 : cardValues[0];
         
         if (isStraight && isFlush) {
@@ -125,7 +135,7 @@ export function PokerTable() {
 
     const findBestHand = (playerHand: Card[], communityCards: Card[]): HandResult => {
         const allCards = [...playerHand, ...communityCards];
-        if (allCards.length < 5) return evaluateHand([]);
+        if (allCards.length < 5) return { rank: -1, values: [], handName: '' };
 
         let bestHandResult: HandResult = { rank: -1, values: [], handName: '' };
 
@@ -167,6 +177,7 @@ export function PokerTable() {
     }
     
     const handleShowdown = useCallback(() => {
+        if (gameState === 'showdown') return;
         setGameState('showdown');
         setCurrentPlayerId(null);
         
@@ -174,21 +185,21 @@ export function PokerTable() {
             let activePlayers = currentPlayers.filter(p => !p.hasFolded);
             const finalPot = pot + currentPlayers.reduce((sum, p) => sum + p.currentBet, 0);
 
-            let winners: Player[] = [];
+            let winners: { player: Player, result: HandResult }[] = [];
 
             if (activePlayers.length === 1) {
-                winners = [activePlayers[0]];
+                winners = [{ player: activePlayers[0], result: { rank: -1, values: [], handName: 'the only one left' } }];
             } else if (activePlayers.length > 1) {
                 const playerHandResults = activePlayers.map(p => ({ player: p, result: findBestHand(p.hand, communityCards) }));
                 
                 let bestResult = playerHandResults[0].result;
-                winners = [playerHandResults[0].player];
+                let currentWinners = [{ player: playerHandResults[0].player, result: bestResult }];
 
                 for (let i = 1; i < playerHandResults.length; i++) {
                     const currentResult = playerHandResults[i].result;
                     let comparison = currentResult.rank - bestResult.rank;
-                    if (comparison === 0) {
-                        for(let j=0; j<currentResult.values.length; j++) {
+                    if (comparison === 0 && currentResult.values.length > 0 && bestResult.values.length > 0) {
+                        for(let j=0; j<Math.min(currentResult.values.length, bestResult.values.length); j++) {
                            if (currentResult.values[j] !== bestResult.values[j]) {
                                comparison = currentResult.values[j] - bestResult.values[j];
                                break;
@@ -198,26 +209,23 @@ export function PokerTable() {
 
                     if (comparison > 0) {
                         bestResult = currentResult;
-                        winners = [playerHandResults[i].player];
+                        currentWinners = [{ player: playerHandResults[i].player, result: bestResult }];
                     } else if (comparison === 0) {
-                        winners.push(playerHandResults[i].player);
+                        currentWinners.push({ player: playerHandResults[i].player, result: currentResult });
                     }
                 }
+                winners = currentWinners;
             }
     
             if (winners.length > 0) {
-                const potPerWinner = finalPot / winners.length;
-                
-                winners.forEach(winner => {
-                    if (winner.isUser) {
-                        toast({ title: t('You win!'), description: t('You won the pot of ${pot}.', { pot: potPerWinner }) });
-                    } else {
-                        toast({ title: t('{name} wins.', { name: winner.name }), description: t('{name} won the pot of ${pot}.', { name: winner.name, pot: potPerWinner }) });
-                    }
-                });
+                const potPerWinner = Math.floor(finalPot / winners.length);
+                const winnerHandName = winners[0].result.handName;
+                const winnerName = winners.length > 1 ? 'Tie' : winners[0].player.name;
 
+                setWinnerInfo({ name: winnerName, handName: winnerHandName });
+                
                 const updatedPlayers = currentPlayers.map(p => {
-                    const isWinner = winners.some(w => w.id === p.id);
+                    const isWinner = winners.some(w => w.player.id === p.id);
                     return {
                         ...p, 
                         stack: p.stack + (isWinner ? potPerWinner : 0),
@@ -237,7 +245,7 @@ export function PokerTable() {
             return playersWithReturnedBets;
         });
 
-    }, [pot, t, toast, communityCards, findBestHand, evaluateHand]);
+    }, [pot, communityCards, gameState, findBestHand, evaluateHand]);
     
     const advanceRound = useCallback(() => {
         let newCommunityCards = [...communityCards];
@@ -339,9 +347,10 @@ export function PokerTable() {
         if (gameState === 'setup') {
             initializePlayers(numPlayers);
         }
-    }, [numPlayers, gameState, initializePlayers]);
+    }, [numPlayers, initializePlayers, gameState]);
 
     const dealNewHand = useCallback(() => {
+        setWinnerInfo(null);
         const playersWithChips = players.filter(p => p.stack > 0);
         if (players.length > 1 && playersWithChips.length <= 1 && gameState !== 'setup') {
             toast({ title: t('Game Over'), description: t('A player has run out of chips.') });
@@ -567,9 +576,9 @@ export function PokerTable() {
     return (
         <div className="w-full aspect-[16/10] bg-primary rounded-3xl p-4 md:p-8 relative flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
             
-            <div className="absolute top-4 left-4 z-20">
+            <div className="absolute top-2 left-2 md:top-4 md:left-4 z-20">
               <Select value={String(numPlayers)} onValueChange={(val) => setNumPlayers(parseInt(val))} disabled={gameState !== 'setup'}>
-                <SelectTrigger className="w-40 bg-background/80">
+                <SelectTrigger className="w-32 md:w-40 bg-background/80">
                   <SelectValue placeholder={t('Number of players')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -580,12 +589,12 @@ export function PokerTable() {
               </Select>
             </div>
 
-            <div className="flex justify-center gap-x-16 gap-y-8 flex-wrap">
+            <div className="flex justify-center gap-x-4 md:gap-x-16 gap-y-8 flex-wrap">
                 {opponents.map(player => (
                     <div key={player.id} className="flex flex-col items-center relative pt-12">
                          <div className="absolute top-0 text-center mb-2 z-10">
-                            <div className="text-lg font-bold text-white/90 font-headline">{player.name}</div>
-                            <div className="text-md font-bold text-accent">{t('Stack')}: ${player.stack}</div>
+                            <div className="text-md md:text-lg font-bold text-white/90 font-headline">{player.name}</div>
+                            <div className="text-sm md:text-md font-bold text-accent">{t('Stack')}: ${player.stack}</div>
                         </div>
                         <div className="flex space-x-2 h-24 items-center">
                              {player.hand.length > 0 ? player.hand.map((card, i) => 
@@ -602,19 +611,19 @@ export function PokerTable() {
                 ))}
             </div>
 
-            <div className="flex flex-col items-center space-y-4">
+            <div className="flex flex-col items-center space-y-4 my-4">
                  {gameState === 'setup' ? (
                      <div className="flex justify-center items-center h-24 min-h-[6rem]">
                         <Button onClick={dealNewHand} size="lg" className="bg-accent hover:bg-accent/90">{t('Start Game')}</Button>
                     </div>
                 ) : (
-                    <div className="flex space-x-2 h-24 min-h-[6rem] items-center">
+                    <div className="flex space-x-1 md:space-x-2 h-24 min-h-[6rem] items-center">
                         {communityCards.map((card, i) => (
                              <PlayingCard key={`${card.rank}-${card.suit}-${i}`} {...card} />
                         ))}
                     </div>
                 )}
-                <div className="bg-black/30 text-accent font-bold text-xl px-6 py-2 rounded-full border-2 border-accent/50">
+                <div className="bg-black/30 text-accent font-bold text-lg md:text-xl px-4 md:px-6 py-2 rounded-full border-2 border-accent/50">
                     {t('Pot')}: ${totalPot}
                 </div>
             </div>
@@ -622,8 +631,8 @@ export function PokerTable() {
             {userPlayer && (
                  <div className="flex flex-col items-center relative pt-12">
                     <div className="absolute top-0 text-center mb-2 z-10">
-                        <div className="text-lg font-bold text-white/90 font-headline">{userPlayer.name}</div>
-                        <div className="text-md font-bold text-accent">{t('Stack')}: ${userPlayer.stack}</div>
+                        <div className="text-md md:text-lg font-bold text-white/90 font-headline">{userPlayer.name}</div>
+                        <div className="text-sm md:text-md font-bold text-accent">{t('Stack')}: ${userPlayer.stack}</div>
                     </div>
                      <div className="flex space-x-2 h-24 items-center">
                          {userPlayer.hand.length > 0 ? userPlayer.hand.map((card, i) => 
@@ -638,29 +647,45 @@ export function PokerTable() {
                     {(userPlayer.totalBet + userPlayer.currentBet) > 0 && <ChipStack amount={userPlayer.totalBet + userPlayer.currentBet} />}
                 </div>
             )}
+            
+            <div className="absolute bottom-4 inset-x-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="flex flex-wrap justify-center items-center gap-2">
+                    <Button onClick={() => handlePlayerAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
+                    {canUserCheckOrCall.canCheck ? (
+                        <Button onClick={() => handlePlayerAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
+                    ) : (
+                        <Button onClick={() => handlePlayerAction('call')} disabled={!canUserAct}>
+                            Call ${canUserCheckOrCall.callAmount}
+                        </Button>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <Button onClick={() => handlePlayerAction('bet')} disabled={!canUserAct}>{t('Bet')}</Button>
+                        <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-20 md:w-24 bg-background/80" disabled={!canUserAct} step="5" />
+                        <Button onClick={() => handlePlayerAction('bet', userPlayer?.stack)} variant="destructive" className="bg-red-800 hover:bg-red-700" disabled={!canUserAct || !userPlayer?.stack}>All-in</Button>
+                    </div>
+                </div>
 
-            <div className="absolute bottom-4 left-4 flex flex-col sm:flex-row gap-2">
-                <Button onClick={() => handlePlayerAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
-                {canUserCheckOrCall.canCheck ? (
-                    <Button onClick={() => handlePlayerAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
-                ) : (
-                    <Button onClick={() => handlePlayerAction('call')} disabled={!canUserAct}>
-                        Call ${canUserCheckOrCall.callAmount}
-                    </Button>
-                )}
-                <div className="flex items-center gap-2">
-                    <Button onClick={() => handlePlayerAction('bet')} disabled={!canUserAct}>{t('Bet')}</Button>
-                    <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-24 bg-background/80" disabled={!canUserAct} step="5" />
-                    <Button onClick={() => handlePlayerAction('bet', userPlayer?.stack)} variant="destructive" className="bg-red-800 hover:bg-red-700" disabled={!canUserAct || !userPlayer?.stack}>All-in</Button>
+                <div className="flex flex-wrap justify-center items-center gap-2">
+                    {gameState === 'showdown' && <Button onClick={dealNewHand} className="bg-accent hover:bg-accent/90" disabled={gameOver}>{t('New Hand')}</Button>}
+                    <Button onClick={() => handleShowCards(userPlayer ? !userPlayer.showHand : false)} variant="outline" disabled={isDealing || gameState === 'setup' || gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
                 </div>
             </div>
 
-            <div className="absolute bottom-4 right-4 flex flex-col sm:flex-row gap-2">
-                {gameState === 'showdown' && <Button onClick={dealNewHand} className="bg-accent hover:bg-accent/90" disabled={gameOver}>{t('New Hand')}</Button>}
-                <Button onClick={() => handleShowCards(userPlayer ? !userPlayer.showHand : false)} variant="outline" disabled={isDealing || gameState === 'setup' || gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
-            </div>
+            <AlertDialog open={!!winnerInfo} onOpenChange={(open) => !open && setWinnerInfo(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-center text-accent font-headline text-3xl">
+                            {winnerInfo?.name === 'Tie' ? "It's a Tie!" : `${winnerInfo?.name} wins!`}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-center text-lg">
+                            With a {winnerInfo?.handName}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction onClick={dealNewHand} className="w-full bg-accent hover:bg-accent/90">{t('New Hand')}</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
-
-    
