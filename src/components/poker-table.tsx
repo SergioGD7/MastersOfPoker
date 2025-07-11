@@ -178,52 +178,53 @@ export function PokerTable() {
     
     const handleShowdown = useCallback(() => {
         if (gameState === 'showdown') return;
-        setGameState('showdown');
-        setCurrentPlayerId(null);
         
-        setPlayers(currentPlayers => {
-            let activePlayers = currentPlayers.filter(p => !p.hasFolded);
-            const finalPot = pot + currentPlayers.reduce((sum, p) => sum + p.currentBet, 0);
+        let activePlayers = players.filter(p => !p.hasFolded);
+        const finalPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
 
-            let winners: { player: Player, result: HandResult }[] = [];
+        let winners: { player: Player, result: HandResult }[] = [];
 
-            if (activePlayers.length === 1) {
-                winners = [{ player: activePlayers[0], result: { rank: -1, values: [], handName: 'the only one left' } }];
-            } else if (activePlayers.length > 1) {
-                const playerHandResults = activePlayers.map(p => ({ player: p, result: findBestHand(p.hand, communityCards) }));
-                
-                let bestResult = playerHandResults[0].result;
-                let currentWinners = [{ player: playerHandResults[0].player, result: bestResult }];
+        if (activePlayers.length === 1) {
+            winners = [{ player: activePlayers[0], result: { rank: -1, values: [], handName: 'the only one left' } }];
+        } else if (activePlayers.length > 1) {
+            const playerHandResults = activePlayers.map(p => ({ player: p, result: findBestHand(p.hand, communityCards) }));
+            
+            let bestResult = playerHandResults[0].result;
+            let currentWinners = [{ player: playerHandResults[0].player, result: bestResult }];
 
-                for (let i = 1; i < playerHandResults.length; i++) {
-                    const currentResult = playerHandResults[i].result;
-                    let comparison = currentResult.rank - bestResult.rank;
-                    if (comparison === 0 && currentResult.values.length > 0 && bestResult.values.length > 0) {
-                        for(let j=0; j<Math.min(currentResult.values.length, bestResult.values.length); j++) {
-                           if (currentResult.values[j] !== bestResult.values[j]) {
-                               comparison = currentResult.values[j] - bestResult.values[j];
-                               break;
-                           }
+            for (let i = 1; i < playerHandResults.length; i++) {
+                const currentResult = playerHandResults[i].result;
+                let comparison = currentResult.rank - bestResult.rank;
+                if (comparison === 0 && currentResult.values.length > 0 && bestResult.values.length > 0) {
+                    for(let j=0; j<Math.min(currentResult.values.length, bestResult.values.length); j++) {
+                        if (currentResult.values[j] !== bestResult.values[j]) {
+                            comparison = currentResult.values[j] - bestResult.values[j];
+                            break;
                         }
                     }
-
-                    if (comparison > 0) {
-                        bestResult = currentResult;
-                        currentWinners = [{ player: playerHandResults[i].player, result: bestResult }];
-                    } else if (comparison === 0) {
-                        currentWinners.push({ player: playerHandResults[i].player, result: currentResult });
-                    }
                 }
-                winners = currentWinners;
-            }
-    
-            if (winners.length > 0) {
-                const potPerWinner = Math.floor(finalPot / winners.length);
-                const winnerHandName = winners[0].result.handName;
-                const winnerName = winners.length > 1 ? 'Tie' : winners[0].player.name;
 
-                setWinnerInfo({ name: winnerName, handName: winnerHandName });
-                
+                if (comparison > 0) {
+                    bestResult = currentResult;
+                    currentWinners = [{ player: playerHandResults[i].player, result: bestResult }];
+                } else if (comparison === 0) {
+                    currentWinners.push({ player: playerHandResults[i].player, result: currentResult });
+                }
+            }
+            winners = currentWinners;
+        }
+
+        setGameState('showdown');
+        setCurrentPlayerId(null);
+
+        if (winners.length > 0) {
+            const potPerWinner = Math.floor(finalPot / winners.length);
+            const winnerHandName = winners[0].result.handName;
+            const winnerName = winners.length > 1 ? 'Tie' : winners[0].player.name;
+
+            setWinnerInfo({ name: winnerName, handName: winnerHandName });
+            
+            setPlayers(currentPlayers => {
                 const updatedPlayers = currentPlayers.map(p => {
                     const isWinner = winners.some(w => w.player.id === p.id);
                     return {
@@ -235,16 +236,18 @@ export function PokerTable() {
                 });
                 setPot(0);
                 return updatedPlayers.map(p => ({...p, totalBet: 0}));
-            }
+            });
+        } else {
+            setPlayers(currentPlayers => {
+                const playersWithReturnedBets = currentPlayers.map(p => ({
+                    ...p, stack: p.stack + p.currentBet, currentBet: 0, totalBet: 0, showHand: true
+                }));
+                setPot(0);
+                return playersWithReturnedBets;
+            });
+        }
 
-            const playersWithReturnedBets = currentPlayers.map(p => ({
-                ...p, stack: p.stack + p.currentBet, currentBet: 0, totalBet: 0, showHand: true
-            }));
-            setPot(0);
-            return playersWithReturnedBets;
-        });
-
-    }, [pot, communityCards, gameState, findBestHand, evaluateHand, t]);
+    }, [pot, communityCards, gameState, findBestHand, evaluateHand, t, players]);
     
     const advanceRound = useCallback(() => {
         let newCommunityCards = [...communityCards];
@@ -491,11 +494,10 @@ export function PokerTable() {
                 const callAmount = Math.min(amountToCall, user.stack);
                 updatedUser.stack -= callAmount;
                 updatedUser.currentBet += callAmount;
-                updatedUser.totalBet += callAmount;
-                toast({ description: `You call ${callAmount}` });
                 if (updatedUser.stack === 0) {
                     updatedUser.isAllIn = true;
                 }
+                toast({ description: `You call ${callAmount}` });
             }
         } else if (action === 'bet') {
             const betAmountValue = amount ?? (typeof betAmount === 'number' ? betAmount : 0);
@@ -523,14 +525,14 @@ export function PokerTable() {
             
             updatedUser.stack -= betAmountValue;
             updatedUser.currentBet += betAmountValue;
-            updatedUser.totalBet += betAmountValue;
-            toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
 
             if (updatedUser.stack === 0) {
                 updatedUser.isAllIn = true;
             }
+            toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
         }
-
+        
+        updatedUser.totalBet = user.totalBet + (updatedUser.currentBet - user.currentBet);
         updatedPlayers[userIndex] = updatedUser;
 
         const newHighestBet = Math.max(...updatedPlayers.map(p => p.currentBet));
@@ -611,7 +613,7 @@ export function PokerTable() {
                                     </>
                                 )}
                             </div>
-                            {player.totalBet > 0 && <ChipStack amount={player.totalBet} />}
+                            {player.currentBet > 0 && <ChipStack amount={player.currentBet} />}
                         </div>
                     ))}
                 </div>
@@ -654,7 +656,7 @@ export function PokerTable() {
                                 </>
                             )}
                         </div>
-                        {userPlayer.totalBet > 0 && <ChipStack amount={userPlayer.totalBet} />}
+                        {userPlayer.currentBet > 0 && <ChipStack amount={userPlayer.currentBet} />}
                     </div>
                 )}
 
