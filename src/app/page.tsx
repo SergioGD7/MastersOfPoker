@@ -4,7 +4,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HandRankings } from "@/components/hand-rankings";
-import { StatTracker } from "@/components/stat-tracker";
+import { HandSimulator } from "@/components/hand-simulator";
 import { PokerTable, type PokerTableHandles } from "@/components/poker-table";
 import { LogoIcon } from "@/components/icons";
 import { useI18n } from "@/components/i18n-provider";
@@ -75,7 +75,7 @@ export default function Home() {
           <TabsList className="grid w-full grid-cols-3 bg-background/50">
             <TabsTrigger value="visualizer">{t('Visualizer')}</TabsTrigger>
             <TabsTrigger value="rankings">{t('Hand Rankings')}</TabsTrigger>
-            <TabsTrigger value="tracker">{t('Stat Tracker')}</TabsTrigger>
+            <TabsTrigger value="simulator">{t('Simulator')}</TabsTrigger>
           </TabsList>
           <TabsContent value="visualizer" className="mt-4 md:mt-6">
             <div className="flex flex-col items-center">
@@ -109,8 +109,8 @@ export default function Home() {
           <TabsContent value="rankings" className="mt-4 md:mt-6">
             <HandRankings />
           </TabsContent>
-          <TabsContent value="tracker" className="mt-4 md:mt-6">
-            <StatTracker />
+          <TabsContent value="simulator" className="mt-4 md:mt-6">
+            <HandSimulator />
           </TabsContent>
         </Tabs>
       </div>
