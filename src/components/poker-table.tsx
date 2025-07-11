@@ -28,6 +28,7 @@ export type Player = {
     currentBet: number;
     isAllIn: boolean;
     hasActed: boolean;
+    betInRound: number;
 };
 
 export type GameState = 'setup' | 'dealing' | 'pre-flop' | 'flop' | 'turn' | 'river' | 'showdown';
@@ -107,6 +108,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             currentBet: 0,
             isAllIn: false,
             hasActed: false,
+            betInRound: 0,
         }));
         setPlayers(initialPlayers);
     }, [t]);
@@ -196,7 +198,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         
         const showdownAction = () => {
             let activePlayers = players.filter(p => !p.hasFolded);
-            const finalPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
+            const finalPot = players.reduce((sum, p) => sum + p.currentBet, 0);
 
             let winners: { player: Player, result: HandResult }[] = [];
 
@@ -249,6 +251,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                             stack: p.stack + (isWinner ? potPerWinner : 0),
                             showHand: true,
                             currentBet: 0,
+                            betInRound: 0,
                         };
                     });
                     setPot(0);
@@ -257,7 +260,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             } else {
                 setPlayers(currentPlayers => {
                     const playersWithReturnedBets = currentPlayers.map(p => ({
-                        ...p, stack: p.stack + p.currentBet, currentBet: 0, showHand: true
+                        ...p, stack: p.stack + p.currentBet, currentBet: 0, betInRound: 0, showHand: true
                     }));
                     setPot(0);
                     return playersWithReturnedBets;
@@ -265,15 +268,12 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             }
         };
         showdownAction();
-    }, [pot, communityCards, gameState, findBestHand, t, players]);
+    }, [communityCards, gameState, findBestHand, t, players]);
     
     const advanceRound = useCallback(() => {
-        const newPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
-        setPot(newPot);
-
         const playersForNextRound = players.map(p => ({
             ...p,
-            currentBet: 0,
+            betInRound: 0,
             hasActed: p.hasFolded || p.isAllIn,
         }));
 
@@ -306,7 +306,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         const firstPlayerToAct = playersForNextRound.find(p => !p.hasFolded && !p.isAllIn);
         setCurrentPlayerId(firstPlayerToAct ? firstPlayerToAct.id : null);
     
-    }, [gameState, deck, handleShowdown, pot, communityCards, players]);
+    }, [gameState, deck, handleShowdown, communityCards, players]);
 
     const runOpponentActions = useCallback((actingPlayer: Player) => {
         setTimeout(() => {
@@ -314,11 +314,10 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                 let updatedPlayer = currentPlayers.find(p => p.id === actingPlayer.id);
                 if (!updatedPlayer || updatedPlayer.hasActed) return currentPlayers;
     
-                const oldHighestBet = Math.max(...currentPlayers.map(p => p.currentBet));
+                const highestBetInRound = Math.max(...currentPlayers.map(p => p.betInRound));
                 updatedPlayer = { ...updatedPlayer, hasActed: true };
     
-                const highestBet = Math.max(...currentPlayers.map(p => p.currentBet));
-                const neededToCall = highestBet - updatedPlayer.currentBet;
+                const neededToCall = highestBetInRound - updatedPlayer.betInRound;
                 
                 const handStrength = Math.random(); 
         
@@ -330,6 +329,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                         const callAmount = Math.min(neededToCall, updatedPlayer.stack);
                         updatedPlayer.stack -= callAmount;
                         updatedPlayer.currentBet += callAmount;
+                        updatedPlayer.betInRound += callAmount;
                         if (updatedPlayer.stack === 0) updatedPlayer.isAllIn = true;
                         toast({ description: t('{name} calls.', { name: updatedPlayer.name }) });
                     }
@@ -338,6 +338,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                         const betValue = Math.min(updatedPlayer.stack, 20 + Math.floor(Math.random() * 3) * 5); // Bet 20, 25, or 30
                         updatedPlayer.stack -= betValue;
                         updatedPlayer.currentBet += betValue;
+                        updatedPlayer.betInRound += betValue;
                         if (updatedPlayer.stack === 0) updatedPlayer.isAllIn = true;
                         toast({ description: t('{name} bets {amount}', { name: updatedPlayer.name, amount: betValue }) });
                     } else {
@@ -347,8 +348,8 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     
                 let newPlayers = currentPlayers.map(p => p.id === updatedPlayer!.id ? updatedPlayer! : p);
                 
-                const newHighestBet = Math.max(...newPlayers.map(p => p.currentBet));
-                if (newHighestBet > oldHighestBet) {
+                const newHighestBetInRound = Math.max(...newPlayers.map(p => p.betInRound));
+                if (newHighestBetInRound > highestBetInRound) {
                     newPlayers = newPlayers.map(p => {
                         if (p.id !== updatedPlayer!.id && !p.isAllIn && !p.hasFolded) {
                             return {...p, hasActed: false};
@@ -392,7 +393,8 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                 hasFolded: false, 
                 currentBet: 0,
                 isAllIn: false, 
-                hasActed: false 
+                hasActed: false,
+                betInRound: 0,
             }));
 
         let tempDeck = [...newDeck];
@@ -403,7 +405,6 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         
         let tempPlayers = [...playersForNewHand];
         
-        let currentPot = 0;
         if (tempPlayers.length > 1) {
             const sbPlayerIndex = 0 % tempPlayers.length;
             const bbPlayerIndex = 1 % tempPlayers.length;
@@ -412,22 +413,22 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             const sbAmount = Math.min(smallBlind, sbPlayer.stack);
             sbPlayer.stack -= sbAmount;
             sbPlayer.currentBet = sbAmount;
+            sbPlayer.betInRound = sbAmount;
             if (sbPlayer.stack === 0) sbPlayer.isAllIn = true;
 
             const bbPlayer = tempPlayers[bbPlayerIndex];
             const bbAmount = Math.min(bigBlind, bbPlayer.stack);
             bbPlayer.stack -= bbAmount;
             bbPlayer.currentBet += bbAmount;
+            bbPlayer.betInRound += bbAmount;
             if (bbPlayer.stack === 0) bbPlayer.isAllIn = true;
-            
-            currentPot = sbAmount + bbAmount;
         }
         
         setDeck(tempDeck);
 
         const finalPlayerState = tempPlayers.map((p, idx) => ({...p, hand: playerHands[idx]}));
         setPlayers(finalPlayerState);
-        setPot(currentPot);
+        setPot(0); // Pot is calculated dynamically
         setGameState('pre-flop');
         const firstToActIndex = tempPlayers.length > 2 ? 2 % tempPlayers.length : 0;
         setCurrentPlayerId(finalPlayerState[firstToActIndex]?.id ?? null);
@@ -450,16 +451,15 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         }
         
         const activePlayers = players.filter(p => !p.hasFolded && !p.isAllIn);
-        const allInPlayers = players.filter(p => p.isAllIn && !p.hasFolded);
-        const allHaveActed = activePlayers.length > 0 && activePlayers.every(p => p.hasActed);
         
         const bettingFinished = () => {
-             const highestBet = Math.max(...players.map(p => p.currentBet));
-             return activePlayers.every(p => p.hasActed && p.currentBet === highestBet) || activePlayers.length === 0;
+             const highestBetInRound = Math.max(...activePlayers.map(p => p.betInRound));
+             return activePlayers.every(p => p.hasActed && p.betInRound === highestBetInRound);
         }
 
         if (bettingFinished()) {
-             if (allInPlayers.length > 0 && nonFoldedPlayers.length - allInPlayers.length <= 1) {
+             const allInPlayers = players.filter(p => p.isAllIn && !p.hasFolded);
+             if (allInPlayers.length > 0 && activePlayers.length <= 1) {
                 let tempDeck = [...deck];
                 let tempCommunityCards = [...communityCards];
                 const cardsToDealCount = 5 - tempCommunityCards.length;
@@ -492,7 +492,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
              let loopCount = 0;
              while(loopCount < players.length) {
                 const nextPlayer = players[nextIndex];
-                 if (!nextPlayer.hasFolded && !nextPlayer.isAllIn && !nextPlayer.hasActed) {
+                 if (!nextPlayer.hasFolded && !nextPlayer.isAllIn) {
                      setCurrentPlayerId(nextPlayer.id);
                      return;
                  }
@@ -512,25 +512,26 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
 
             const user = updatedPlayers[userIndex];
             let updatedUser = { ...user, hasActed: true };
-            const oldHighestBet = Math.max(...updatedPlayers.map(p => p.currentBet));
+            const highestBetInRound = Math.max(...updatedPlayers.map(p => p.betInRound));
 
             if (action === 'fold') {
                 updatedUser.hasFolded = true;
                 toast({ description: t('You folded') });
             } else if (action === 'check') {
-                if(user.currentBet < oldHighestBet) {
-                    toast({ variant: "destructive", title: t('Invalid Bet'), description: `You must at least call ${oldHighestBet}` });
+                if(user.betInRound < highestBetInRound) {
+                    toast({ variant: "destructive", title: t('Invalid Bet'), description: `You must at least call ${highestBetInRound}` });
                     return updatedPlayers;
                 }
                 toast({ description: t('You check') });
             } else if (action === 'call') {
-                const amountToCall = oldHighestBet - user.currentBet;
+                const amountToCall = highestBetInRound - user.betInRound;
                 if (amountToCall <= 0) {
                     toast({ description: t('You check') });
                 } else {
                     const callAmount = Math.min(amountToCall, user.stack);
                     updatedUser.stack -= callAmount;
                     updatedUser.currentBet += callAmount;
+                    updatedUser.betInRound += callAmount;
                     if (updatedUser.stack === 0) {
                         updatedUser.isAllIn = true;
                     }
@@ -546,6 +547,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
 
                 if(amount === user.stack) { // All-in
                     updatedUser.currentBet += betAmountValue;
+                    updatedUser.betInRound += betAmountValue;
                     updatedUser.stack = 0;
                     updatedUser.isAllIn = true;
                     toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
@@ -560,14 +562,15 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                          return updatedPlayers;
                     }
                     
-                    const totalBet = user.currentBet + betAmountValue;
-                    if (totalBet < oldHighestBet && betAmountValue < user.stack) {
-                        toast({ variant: "destructive", title: t('Invalid Bet'), description: `Minimum bet is ${oldHighestBet}.` });
+                    const totalBetInRound = user.betInRound + betAmountValue;
+                    if (totalBetInRound < highestBetInRound && betAmountValue < user.stack) {
+                        toast({ variant: "destructive", title: t('Invalid Bet'), description: `Minimum bet is ${highestBetInRound}.` });
                         return updatedPlayers;
                     }
                     
                     updatedUser.stack -= betAmountValue;
                     updatedUser.currentBet += betAmountValue;
+                    updatedUser.betInRound += betAmountValue;
 
                     if (updatedUser.stack === 0) {
                         updatedUser.isAllIn = true;
@@ -578,9 +581,9 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             
             updatedPlayers[userIndex] = updatedUser;
 
-            const newHighestBet = Math.max(...updatedPlayers.map(p => p.currentBet));
+            const newHighestBetInRound = Math.max(...updatedPlayers.map(p => p.betInRound));
 
-            if (newHighestBet > oldHighestBet) {
+            if (newHighestBetInRound > highestBetInRound) {
                  updatedPlayers = updatedPlayers.map(p => {
                     if(!p.isUser && !p.isAllIn && !p.hasFolded) {
                         return {...p, hasActed: false};
@@ -617,7 +620,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         return userPlayer.id === currentPlayerId;
     }, [userPlayer, isDealing, gameState, currentPlayerId]);
     
-    const totalPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
+    const totalPot = players.reduce((sum, p) => sum + p.currentBet, 0);
 
     useImperativeHandle(ref, () => ({
         handlePlayerAction,
