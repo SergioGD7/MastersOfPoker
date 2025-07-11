@@ -238,11 +238,11 @@ export function PokerTable() {
             blindPot = sbPlayer.currentBet + bbPlayer.currentBet;
         }
         
+        const playerHands = tempPlayers.map(() => [tempDeck.pop()!, tempDeck.pop()!]);
+
         // This part of the deck is for community cards
         const finalDeck = tempDeck.slice(playerHands.length * 2);
         setDeck(finalDeck);
-
-        const playerHands = tempPlayers.map(() => [tempDeck.pop()!, tempDeck.pop()!]);
 
         const finalPlayerState = tempPlayers.map((p, idx) => ({...p, hand: playerHands[idx]}));
         setPlayers(finalPlayerState);
