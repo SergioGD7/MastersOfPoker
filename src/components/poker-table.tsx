@@ -209,7 +209,6 @@ export function PokerTable() {
                         if (updatedPlayer.stack === 0) updatedPlayer.isAllIn = true;
                         toast({ description: t('{name} bets {amount}', { name: updatedPlayer.name, amount: betValue }) });
                     } else {
-                        updatedPlayer.hasActed = true;
                         toast({ description: t('{name} checks.', { name: updatedPlayer.name }) });
                     }
                 }
@@ -357,7 +356,7 @@ export function PokerTable() {
     }, [players, gameState, currentPlayerId, advanceRound, handleShowdown, runOpponentActions]);
 
 
-    const handlePlayerAction = (action: 'fold' | 'check' | 'bet', amount?: number) => {
+    const handlePlayerAction = (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => {
         let updatedPlayers = [...players];
         const userIndex = updatedPlayers.findIndex(p => p.isUser);
         if (userIndex === -1) return;
@@ -375,6 +374,20 @@ export function PokerTable() {
                 return;
             }
             toast({ description: t('You check') });
+        } else if (action === 'call') {
+            const amountToCall = highestBet - user.currentBet;
+            if (amountToCall <= 0) {
+                // This is equivalent to a check
+                toast({ description: t('You check') });
+            } else {
+                const callAmount = Math.min(amountToCall, user.stack);
+                updatedUser.stack -= callAmount;
+                updatedUser.currentBet += callAmount;
+                toast({ description: `You call ${callAmount}` });
+                if (updatedUser.stack === 0) {
+                    updatedUser.isAllIn = true;
+                }
+            }
         } else if (action === 'bet') {
             const betAmountValue = amount ?? (typeof betAmount === 'number' ? betAmount : 0);
 
@@ -442,11 +455,17 @@ export function PokerTable() {
         return userPlayer.id === currentPlayerId;
     }, [userPlayer, isDealing, gameState, currentPlayerId]);
 
-    const canUserCheck = useMemo(() => {
-        if (!userPlayer) return false;
-        const highestBet = Math.max(...players.map(p => p.currentBet));
-        return userPlayer.currentBet === highestBet;
-    }, [players, userPlayer]);
+    const highestBet = useMemo(() => Math.max(...players.map(p => p.currentBet)), [players]);
+    
+    const canUserCheckOrCall = useMemo(() => {
+        if (!userPlayer) return { canCheck: false, canCall: false, callAmount: 0 };
+        const amountToCall = highestBet - userPlayer.currentBet;
+        return {
+            canCheck: amountToCall <= 0,
+            canCall: amountToCall > 0,
+            callAmount: amountToCall,
+        };
+    }, [players, userPlayer, highestBet]);
 
     return (
         <div className="w-full aspect-[16/10] bg-primary rounded-3xl p-4 md:p-8 relative flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
@@ -525,7 +544,13 @@ export function PokerTable() {
 
             <div className="absolute bottom-4 left-4 flex flex-col sm:flex-row gap-2">
                 <Button onClick={() => handlePlayerAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
-                <Button onClick={() => handlePlayerAction('check')} disabled={!canUserAct || !canUserCheck}>{t('Check')}</Button>
+                {canUserCheckOrCall.canCheck ? (
+                    <Button onClick={() => handlePlayerAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
+                ) : (
+                    <Button onClick={() => handlePlayerAction('call')} disabled={!canUserAct}>
+                        Call ${canUserCheckOrCall.callAmount}
+                    </Button>
+                )}
                 <div className="flex items-center gap-2">
                     <Button onClick={() => handlePlayerAction('bet')} disabled={!canUserAct}>{t('Bet')}</Button>
                     <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-24 bg-background/80" disabled={!canUserAct} step="5" />
