@@ -117,20 +117,20 @@ export function PokerTable() {
         const isStraight = uniqueValues.length >= 5 && (uniqueValues[0] - uniqueValues[4] === 4) ||
                            JSON.stringify(uniqueValues.slice(0,5)) === JSON.stringify([14, 5, 4, 3, 2]); // Ace-low straight
         
-        const straightHighCard = (JSON.stringify(cardValues) === JSON.stringify([14, 5, 4, 3, 2])) ? 5 : cardValues[0];
+        const straightHighCard = (JSON.stringify(uniqueValues.slice(0,5)) === JSON.stringify([14, 5, 4, 3, 2])) ? 5 : uniqueValues[0];
         
         if (isStraight && isFlush) {
-            if (cardValues[0] === 14) return { rank: 9, values: [14], handName: t('Royal Flush') };
+            if (uniqueValues.slice(0,5).every(v => [14,13,12,11,10].includes(v))) return { rank: 9, values: [14], handName: t('Royal Flush') };
             return { rank: 8, values: [straightHighCard], handName: t('Straight Flush') };
         }
-        if (counts[0] === 4) return { rank: 7, values: [fourOfAKind[0], ...cardValues.filter(v => v !== fourOfAKind[0])], handName: t('Four of a Kind') };
+        if (counts[0] === 4) return { rank: 7, values: [fourOfAKind[0], ...cardValues.filter(v => v !== fourOfAKind[0])].slice(0,2), handName: t('Four of a Kind') };
         if (counts[0] === 3 && counts[1] === 2) return { rank: 6, values: [threeOfAKind[0], pairs[0]], handName: t('Full House') };
-        if (isFlush) return { rank: 5, values: cardValues, handName: t('Flush') };
+        if (isFlush) return { rank: 5, values: cardValues.slice(0,5), handName: t('Flush') };
         if (isStraight) return { rank: 4, values: [straightHighCard], handName: t('Straight') };
-        if (counts[0] === 3) return { rank: 3, values: [threeOfAKind[0], ...cardValues.filter(v => v !== threeOfAKind[0])], handName: t('Three of a Kind') };
-        if (counts[0] === 2 && counts[1] === 2) return { rank: 2, values: [pairs[0], pairs[1], ...cardValues.filter(v => !pairs.includes(v))], handName: t('Two Pair') };
-        if (counts[0] === 2) return { rank: 1, values: [pairs[0], ...cardValues.filter(v => v !== pairs[0])], handName: t('One Pair') };
-        return { rank: 0, values: cardValues, handName: t('High Card') };
+        if (counts[0] === 3) return { rank: 3, values: [threeOfAKind[0], ...cardValues.filter(v => v !== threeOfAKind[0])].slice(0,3), handName: t('Three of a Kind') };
+        if (counts[0] === 2 && counts[1] === 2) return { rank: 2, values: [pairs[0], pairs[1], ...cardValues.filter(v => !pairs.includes(v))].slice(0,3), handName: t('Two Pair') };
+        if (counts[0] === 2) return { rank: 1, values: [pairs[0], ...cardValues.filter(v => v !== pairs[0])].slice(0,4), handName: t('One Pair') };
+        return { rank: 0, values: cardValues.slice(0,5), handName: t('High Card') };
     };
 
     const findBestHand = (playerHand: Card[], communityCards: Card[]): HandResult => {
@@ -189,8 +189,6 @@ export function PokerTable() {
 
             if (activePlayers.length === 1) {
                 winners = [{ player: activePlayers[0], result: { rank: -1, values: [], handName: 'the only one left' } }];
-                 setTimeout(() => toast({ title: `${winners[0].player.name} wins!`, description: `${t('{name} wins the pot.', { name: winners[0].player.name })}` }), 500);
-
             } else if (activePlayers.length > 1) {
                 const playerHandResults = activePlayers.map(p => ({ player: p, result: findBestHand(p.hand, communityCards) }));
                 
@@ -233,11 +231,10 @@ export function PokerTable() {
                         stack: p.stack + (isWinner ? potPerWinner : 0),
                         showHand: true,
                         currentBet: 0,
-                        totalBet: 0,
                     };
                 });
                 setPot(0);
-                return updatedPlayers;
+                return updatedPlayers.map(p => ({...p, totalBet: 0}));
             }
 
             const playersWithReturnedBets = currentPlayers.map(p => ({
@@ -247,7 +244,7 @@ export function PokerTable() {
             return playersWithReturnedBets;
         });
 
-    }, [pot, communityCards, gameState, findBestHand, evaluateHand, toast, t]);
+    }, [pot, communityCards, gameState, findBestHand, evaluateHand, t]);
     
     const advanceRound = useCallback(() => {
         let newCommunityCards = [...communityCards];
@@ -396,12 +393,14 @@ export function PokerTable() {
             const sbAmount = Math.min(smallBlind, sbPlayer.stack);
             sbPlayer.stack -= sbAmount;
             sbPlayer.currentBet = sbAmount;
+            sbPlayer.totalBet = sbAmount;
             if (sbPlayer.stack === 0) sbPlayer.isAllIn = true;
 
             const bbPlayer = tempPlayers[bbPlayerIndex];
             const bbAmount = Math.min(bigBlind, bbPlayer.stack);
             bbPlayer.stack -= bbAmount;
             bbPlayer.currentBet += bbAmount;
+            bbPlayer.totalBet = bbAmount;
             if (bbPlayer.stack === 0) bbPlayer.isAllIn = true;
         }
         
@@ -492,6 +491,7 @@ export function PokerTable() {
                 const callAmount = Math.min(amountToCall, user.stack);
                 updatedUser.stack -= callAmount;
                 updatedUser.currentBet += callAmount;
+                updatedUser.totalBet += callAmount;
                 toast({ description: `You call ${callAmount}` });
                 if (updatedUser.stack === 0) {
                     updatedUser.isAllIn = true;
@@ -523,6 +523,7 @@ export function PokerTable() {
             
             updatedUser.stack -= betAmountValue;
             updatedUser.currentBet += betAmountValue;
+            updatedUser.totalBet += betAmountValue;
             toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
 
             if (updatedUser.stack === 0) {
@@ -573,12 +574,12 @@ export function PokerTable() {
         };
     }, [userPlayer, highestBet]);
     
-    const totalPot = pot + players.reduce((sum, p) => sum + p.totalBet + p.currentBet, 0);
+    const totalPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
 
     return (
-        <div className="w-full aspect-[16/10] bg-primary rounded-3xl p-4 md:p-8 relative flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
+        <div className="w-full h-full aspect-[9/16] md:aspect-[16/10] bg-primary rounded-3xl p-4 flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
             
-            <div className="absolute top-2 left-2 md:top-4 md:left-4 z-20">
+            <div className="w-full flex-shrink-0 z-20">
               <Select value={String(numPlayers)} onValueChange={(val) => setNumPlayers(parseInt(val))} disabled={gameState !== 'setup'}>
                 <SelectTrigger className="w-32 md:w-40 bg-background/80">
                   <SelectValue placeholder={t('Number of players')} />
@@ -591,30 +592,35 @@ export function PokerTable() {
               </Select>
             </div>
 
-            <div className="flex justify-center gap-x-4 md:gap-x-16 gap-y-8 flex-wrap">
-                {opponents.map(player => (
-                    <div key={player.id} className="flex flex-col items-center relative pt-12">
-                         <div className="absolute top-0 text-center mb-2 z-10">
-                            <div className="text-md md:text-lg font-bold text-white/90 font-headline">{player.name}</div>
-                            <div className="text-sm md:text-md font-bold text-accent">{t('Stack')}: ${player.stack}</div>
+            {/* Opponents Area */}
+            <div className="w-full flex-grow flex items-center justify-center">
+                <div className="flex justify-center items-start gap-x-4 md:gap-x-12 gap-y-8 flex-wrap">
+                    {opponents.map(player => (
+                        <div key={player.id} className="flex flex-col items-center relative pt-12">
+                            <div className="absolute top-0 text-center mb-2 z-10">
+                                <div className="text-md md:text-lg font-bold text-white/90 font-headline">{player.name}</div>
+                                <div className="text-sm md:text-md font-bold text-accent">{t('Stack')}: ${player.stack}</div>
+                            </div>
+                            <div className="flex space-x-2 h-24 items-center">
+                                {player.hand.length > 0 ? player.hand.map((card, i) => 
+                                    <PlayingCard key={i} {...card} hidden={!player.showHand && gameState !== 'showdown'}/>
+                                ) : (
+                                    <>
+                                    <div className="w-12 h-20 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                    <div className="w-12 h-20 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                    </>
+                                )}
+                            </div>
+                            {player.totalBet > 0 && <ChipStack amount={player.totalBet} />}
                         </div>
-                        <div className="flex space-x-2 h-24 items-center">
-                             {player.hand.length > 0 ? player.hand.map((card, i) => 
-                                <PlayingCard key={i} {...card} hidden={!player.showHand && gameState !== 'showdown'}/>
-                            ) : (
-                                <>
-                                   <div className="w-12 h-20 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                                   <div className="w-12 h-20 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                                </>
-                            )}
-                        </div>
-                        {(player.totalBet + player.currentBet) > 0 && <ChipStack amount={player.totalBet + player.currentBet} />}
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
 
-            <div className="flex flex-col items-center space-y-4 my-4">
-                 {gameState === 'setup' ? (
+
+            {/* Table Area (Pot & Community Cards) */}
+            <div className="flex flex-col items-center space-y-2 md:space-y-4 my-2 md:my-4 flex-shrink-0">
+                {gameState === 'setup' ? (
                      <div className="flex justify-center items-center h-24 min-h-[6rem]">
                         <Button onClick={dealNewHand} size="lg" className="bg-accent hover:bg-accent/90">{t('Start Game')}</Button>
                     </div>
@@ -630,30 +636,32 @@ export function PokerTable() {
                 </div>
             </div>
 
-            {userPlayer && (
-                 <div className="flex flex-col items-center relative pt-12">
-                    <div className="absolute top-0 text-center mb-2 z-10">
-                        <div className="text-md md:text-lg font-bold text-white/90 font-headline">{userPlayer.name}</div>
-                        <div className="text-sm md:text-md font-bold text-accent">{t('Stack')}: ${userPlayer.stack}</div>
+            {/* User Area */}
+            <div className="w-full flex flex-col items-center space-y-4 pt-4 flex-shrink-0">
+                {userPlayer && (
+                    <div className="flex flex-col items-center relative">
+                        <div className="text-center mb-2 z-10">
+                            <div className="text-md md:text-lg font-bold text-white/90 font-headline">{userPlayer.name}</div>
+                            <div className="text-sm md:text-md font-bold text-accent">{t('Stack')}: ${userPlayer.stack}</div>
+                        </div>
+                        <div className="flex space-x-2 h-24 items-center">
+                            {userPlayer.hand.length > 0 ? userPlayer.hand.map((card, i) => 
+                                <PlayingCard key={i} {...card} hidden={!userPlayer.showHand && gameState !== 'showdown'} />
+                            ) : (
+                                <>
+                                <div className="w-12 h-20 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                <div className="w-12 h-20 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
+                                </>
+                            )}
+                        </div>
+                        {userPlayer.totalBet > 0 && <ChipStack amount={userPlayer.totalBet} />}
                     </div>
-                     <div className="flex space-x-2 h-24 items-center">
-                         {userPlayer.hand.length > 0 ? userPlayer.hand.map((card, i) => 
-                            <PlayingCard key={i} {...card} hidden={!userPlayer.showHand && gameState !== 'showdown'} />
-                         ) : (
-                            <>
-                               <div className="w-12 h-20 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                               <div className="w-12 h-20 rounded-lg bg-muted/20 border-2 border-dashed border-white/20" />
-                            </>
-                         )}
-                    </div>
-                    {(userPlayer.totalBet + userPlayer.currentBet) > 0 && <ChipStack amount={userPlayer.totalBet + userPlayer.currentBet} />}
-                </div>
-            )}
-            
-            <div className="absolute bottom-4 inset-x-4 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex flex-wrap justify-center items-center gap-2">
-                    <div className="flex flex-wrap justify-center gap-2">
-                        <Button onClick={() => handlePlayerAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
+                )}
+
+                {/* Action Buttons */}
+                <div className="w-full flex flex-col items-center gap-2">
+                    <div className="flex flex-wrap justify-center items-center gap-2">
+                         <Button onClick={() => handlePlayerAction('fold')} variant="destructive" disabled={!canUserAct}>{t('Fold')}</Button>
                         {canUserCheckOrCall.canCheck ? (
                             <Button onClick={() => handlePlayerAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
                         ) : (
@@ -661,19 +669,19 @@ export function PokerTable() {
                                 Call ${canUserCheckOrCall.callAmount}
                             </Button>
                         )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button onClick={() => handlePlayerAction('bet')} disabled={!canUserAct}>{t('Bet')}</Button>
-                        <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-20 md:w-24 bg-background/80" disabled={!canUserAct} step="5" />
+                         <div className="flex items-center gap-2">
+                            <Button onClick={() => handlePlayerAction('bet')} disabled={!canUserAct}>{t('Bet')}</Button>
+                            <Input type="number" value={betAmount} onChange={e => setBetAmount(e.target.value === '' ? '' : parseInt(e.target.value))} className="w-20 bg-background/80" disabled={!canUserAct} step="5" />
+                        </div>
                         <Button onClick={() => handlePlayerAction('bet', userPlayer?.stack)} variant="destructive" className="bg-red-800 hover:bg-red-700" disabled={!canUserAct || !userPlayer?.stack}>All-in</Button>
                     </div>
-                </div>
-
-                <div className="flex flex-wrap justify-center items-center gap-2">
-                    {gameState === 'showdown' && <Button onClick={dealNewHand} className="bg-accent hover:bg-accent/90" disabled={gameOver}>{t('New Hand')}</Button>}
-                    <Button onClick={() => handleShowCards(userPlayer ? !userPlayer.showHand : false)} variant="outline" disabled={isDealing || gameState === 'setup' || gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
+                     <div className="flex flex-wrap justify-center items-center gap-2">
+                        {gameState === 'showdown' && <Button onClick={dealNewHand} className="bg-accent hover:bg-accent/90" disabled={gameOver}>{t('New Hand')}</Button>}
+                        <Button onClick={() => handleShowCards(userPlayer ? !userPlayer.showHand : false)} variant="outline" disabled={isDealing || gameState === 'setup' || gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
+                    </div>
                 </div>
             </div>
+
 
             <AlertDialog open={!!winnerInfo} onOpenChange={(open) => !open && setWinnerInfo(null)}>
                 <AlertDialogContent>
@@ -686,7 +694,7 @@ export function PokerTable() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogAction onClick={dealNewHand} className="w-full bg-accent hover:bg-accent/90">{t('New Hand')}</AlertDialogAction>
+                        <AlertDialogAction onClick={() => { setWinnerInfo(null); dealNewHand(); }} className="w-full bg-accent hover:bg-accent/90">{t('New Hand')}</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
