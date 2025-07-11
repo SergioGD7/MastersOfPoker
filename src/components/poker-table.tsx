@@ -47,6 +47,7 @@ export interface PokerTableHandles {
     handlePlayerAction: (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => void;
     handleShowCards: (show: boolean) => void;
     dealNewHand: () => void;
+    resetToSetup: () => void;
 }
 
 interface PokerTableProps {
@@ -233,7 +234,6 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
 
             if (winners.length > 0) {
                 const potPerWinner = Math.floor(finalPot / winners.length);
-                const winnerHandName = winners[0].result.handName;
                 
                 const winnerDetails = winners.map(w => ({
                     name: w.player.isUser ? t('You') : w.player.name,
@@ -380,7 +380,6 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         setIsDealing(true);
         setGameState('dealing');
         setCommunityCards([]);
-        setPot(0);
         
         const newDeck = shuffleDeck(createDeck());
         
@@ -404,6 +403,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         
         let tempPlayers = [...playersForNewHand];
         
+        let currentPot = 0;
         if (tempPlayers.length > 1) {
             const sbPlayerIndex = 0 % tempPlayers.length;
             const bbPlayerIndex = 1 % tempPlayers.length;
@@ -419,6 +419,8 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             bbPlayer.stack -= bbAmount;
             bbPlayer.currentBet += bbAmount;
             if (bbPlayer.stack === 0) bbPlayer.isAllIn = true;
+            
+            currentPot = sbAmount + bbAmount;
         }
         
         setDeck(tempDeck);
@@ -451,31 +453,31 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         const allInPlayers = players.filter(p => p.isAllIn && !p.hasFolded);
         const allHaveActed = activePlayers.length > 0 && activePlayers.every(p => p.hasActed);
         
-        if (allHaveActed || activePlayers.length === 0) {
-            const highestBet = Math.max(...players.map(p => p.currentBet));
-            const allBetsMatched = activePlayers.every(p => p.currentBet === highestBet);
+        const bettingFinished = () => {
+             const highestBet = Math.max(...players.map(p => p.currentBet));
+             return activePlayers.every(p => p.hasActed && p.currentBet === highestBet) || activePlayers.length === 0;
+        }
 
-            if (allBetsMatched || activePlayers.length === 0) {
-                 if (allInPlayers.length > 0 && nonFoldedPlayers.length - allInPlayers.length <= 1) {
-                    let tempDeck = [...deck];
-                    let tempCommunityCards = [...communityCards];
-                    const cardsToDealCount = 5 - tempCommunityCards.length;
-                    if(cardsToDealCount > 0){
-                        tempCommunityCards.push(...tempDeck.splice(0, cardsToDealCount));
-                        setCommunityCards(tempCommunityCards);
-                        setDeck(tempDeck);
-                    }
-                    setTimeout(() => handleShowdown(), 1000);
-                    return;
+        if (bettingFinished()) {
+             if (allInPlayers.length > 0 && nonFoldedPlayers.length - allInPlayers.length <= 1) {
+                let tempDeck = [...deck];
+                let tempCommunityCards = [...communityCards];
+                const cardsToDealCount = 5 - tempCommunityCards.length;
+                if(cardsToDealCount > 0){
+                    tempCommunityCards.push(...tempDeck.splice(0, cardsToDealCount));
+                    setCommunityCards(tempCommunityCards);
+                    setDeck(tempDeck);
                 }
-                
-                if(gameState !== 'river'){
-                    advanceRound();
-                } else {
-                    handleShowdown();
-                }
+                setTimeout(() => handleShowdown(), 1000);
                 return;
             }
+            
+            if(gameState !== 'river'){
+                advanceRound();
+            } else {
+                handleShowdown();
+            }
+            return;
         }
     
         const actingPlayer = players.find(p => p.id === currentPlayerId);
@@ -543,8 +545,8 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                 }
 
                 if(amount === user.stack) { // All-in
-                    updatedUser.stack = 0;
                     updatedUser.currentBet += betAmountValue;
+                    updatedUser.stack = 0;
                     updatedUser.isAllIn = true;
                     toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
                 } else {
@@ -620,7 +622,8 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     useImperativeHandle(ref, () => ({
         handlePlayerAction,
         handleShowCards,
-        dealNewHand
+        dealNewHand,
+        resetToSetup,
     }));
 
     useEffect(() => {
@@ -754,5 +757,3 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     );
 });
 PokerTable.displayName = "PokerTable";
-
-    

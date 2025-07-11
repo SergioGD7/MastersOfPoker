@@ -30,14 +30,14 @@ export default function Home() {
   const highestBet = useMemo(() => Math.max(...(tableState?.players.map(p => p.currentBet) ?? [0])), [tableState?.players]);
 
   const canUserCheckOrCall = useMemo(() => {
-    if (!userPlayer || !tableState) return { canCheck: false, canCall: false, callAmount: 0 };
+    if (!userPlayer || !tableState || !tableState.players.length) return { canCheck: false, canCall: false, callAmount: 0 };
     const amountToCall = highestBet - userPlayer.currentBet;
     return {
       canCheck: amountToCall <= 0,
       canCall: amountToCall > 0,
       callAmount: amountToCall,
     };
-  }, [userPlayer, highestBet]);
+  }, [userPlayer, highestBet, tableState]);
 
   const handleAction = (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => {
     pokerTableRef.current?.handlePlayerAction(action, amount);
@@ -45,6 +45,10 @@ export default function Home() {
   
   const handleDealNewHand = () => {
     pokerTableRef.current?.dealNewHand();
+  }
+
+  const handleReset = () => {
+    pokerTableRef.current?.resetToSetup();
   }
 
   const handleShowCards = () => {
@@ -95,6 +99,7 @@ export default function Home() {
                   </div>
                   <div className="flex flex-wrap justify-center items-center gap-2 mt-2">
                     {tableState.gameState === 'showdown' && <Button onClick={handleDealNewHand} className="bg-accent hover:bg-accent/90" disabled={tableState.gameOver}>{t('New Hand')}</Button>}
+                     {tableState.gameOver && <Button onClick={handleReset} className="bg-accent hover:bg-accent/90">{t('New Hand')}</Button>}
                     <Button onClick={handleShowCards} variant="outline" disabled={tableState.isDealing || tableState.gameState === 'setup' || tableState.gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
                   </div>
                 </div>
@@ -115,5 +120,3 @@ export default function Home() {
     </main>
   );
 }
-
-    
