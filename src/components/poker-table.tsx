@@ -427,7 +427,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
 
         const finalPlayerState = tempPlayers.map((p, idx) => ({...p, hand: playerHands[idx]}));
         setPlayers(finalPlayerState);
-        setPot(0);
+        setPot(currentPot);
         setGameState('pre-flop');
         const firstToActIndex = tempPlayers.length > 2 ? 2 % tempPlayers.length : 0;
         setCurrentPlayerId(finalPlayerState[firstToActIndex]?.id ?? null);
@@ -757,3 +757,5 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     );
 });
 PokerTable.displayName = "PokerTable";
+
+    
