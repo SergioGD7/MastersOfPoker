@@ -178,52 +178,54 @@ export function PokerTable() {
     }, [gameState, communityCards, deck, handleShowdown, pot]);
 
     const runOpponentActions = useCallback((actingPlayer: Player) => {
-        setPlayers(currentPlayers => {
-            let updatedPlayer = currentPlayers.find(p => p.id === actingPlayer.id);
-            if (!updatedPlayer) return currentPlayers;
-
-            updatedPlayer = { ...updatedPlayer, hasActed: true };
-
-            const highestBet = Math.max(...currentPlayers.map(p => p.currentBet));
-            const neededToCall = highestBet - updatedPlayer.currentBet;
-            
-            const handStrength = Math.random(); 
+        setTimeout(() => {
+            setPlayers(currentPlayers => {
+                let updatedPlayer = currentPlayers.find(p => p.id === actingPlayer.id);
+                if (!updatedPlayer) return currentPlayers;
     
-            if (neededToCall > 0) { 
-                if (handStrength < 0.2 && updatedPlayer.stack > neededToCall) { 
-                    updatedPlayer.hasFolded = true;
-                    toast({ description: t('{name} folds.', { name: updatedPlayer.name }) });
-                } else { 
-                    const callAmount = Math.min(neededToCall, updatedPlayer.stack);
-                    updatedPlayer.stack -= callAmount;
-                    updatedPlayer.currentBet += callAmount;
-                    if (updatedPlayer.stack === 0) updatedPlayer.isAllIn = true;
-                    toast({ description: t('{name} calls.', { name: updatedPlayer.name }) });
-                }
-            } else {
-                if (handStrength > 0.8 && updatedPlayer.stack > 0) { 
-                    const betValue = Math.min(updatedPlayer.stack, 20 + Math.floor(Math.random() * 3) * 5); // Bet 20, 25, or 30
-                    updatedPlayer.stack -= betValue;
-                    updatedPlayer.currentBet += betValue;
-                    if (updatedPlayer.stack === 0) updatedPlayer.isAllIn = true;
-                    toast({ description: t('{name} bets {amount}', { name: updatedPlayer.name, amount: betValue }) });
+                updatedPlayer = { ...updatedPlayer, hasActed: true };
+    
+                const highestBet = Math.max(...currentPlayers.map(p => p.currentBet));
+                const neededToCall = highestBet - updatedPlayer.currentBet;
+                
+                const handStrength = Math.random(); 
+        
+                if (neededToCall > 0) { 
+                    if (handStrength < 0.2 && updatedPlayer.stack > neededToCall) { 
+                        updatedPlayer.hasFolded = true;
+                        toast({ description: t('{name} folds.', { name: updatedPlayer.name }) });
+                    } else { 
+                        const callAmount = Math.min(neededToCall, updatedPlayer.stack);
+                        updatedPlayer.stack -= callAmount;
+                        updatedPlayer.currentBet += callAmount;
+                        if (updatedPlayer.stack === 0) updatedPlayer.isAllIn = true;
+                        toast({ description: t('{name} calls.', { name: updatedPlayer.name }) });
+                    }
                 } else {
-                    toast({ description: t('{name} checks.', { name: updatedPlayer.name }) });
+                    if (handStrength > 0.8 && updatedPlayer.stack > 0) { 
+                        const betValue = Math.min(updatedPlayer.stack, 20 + Math.floor(Math.random() * 3) * 5); // Bet 20, 25, or 30
+                        updatedPlayer.stack -= betValue;
+                        updatedPlayer.currentBet += betValue;
+                        if (updatedPlayer.stack === 0) updatedPlayer.isAllIn = true;
+                        toast({ description: t('{name} bets {amount}', { name: updatedPlayer.name, amount: betValue }) });
+                    } else {
+                        toast({ description: t('{name} checks.', { name: updatedPlayer.name }) });
+                    }
                 }
-            }
-
-            const newPlayers = currentPlayers.map(p => p.id === updatedPlayer!.id ? updatedPlayer! : p);
-            
-            const newHighestBet = Math.max(...newPlayers.map(p => p.currentBet));
-            if (newHighestBet > highestBet) {
-                return newPlayers.map(p => ({
-                    ...p,
-                    hasActed: p.id === updatedPlayer!.id || p.isAllIn || p.hasFolded
-                }));
-            }
-            
-            return newPlayers;
-        });
+    
+                const newPlayers = currentPlayers.map(p => p.id === updatedPlayer!.id ? updatedPlayer! : p);
+                
+                const newHighestBet = Math.max(...newPlayers.map(p => p.currentBet));
+                if (newHighestBet > highestBet) {
+                    return newPlayers.map(p => ({
+                        ...p,
+                        hasActed: p.id === updatedPlayer!.id || p.isAllIn || p.hasFolded
+                    }));
+                }
+                
+                return newPlayers;
+            });
+        }, 800);
     }, [t, toast]);
 
 
@@ -328,7 +330,7 @@ export function PokerTable() {
     
         if (actingPlayer && !actingPlayer.hasActed && !actingPlayer.hasFolded && !actingPlayer.isAllIn) {
             if (!actingPlayer.isUser) {
-                setTimeout(() => runOpponentActions(actingPlayer), 800);
+                runOpponentActions(actingPlayer);
             }
         } else {
             const currentIndex = players.findIndex(p => p.id === currentPlayerId);
