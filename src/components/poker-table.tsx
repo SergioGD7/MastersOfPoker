@@ -1,10 +1,9 @@
 
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { PlayingCard, type Rank, type Suit } from "@/components/playing-card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from './i18n-provider';
@@ -45,18 +44,19 @@ type WinnerInfo = {
 } | null;
 
 export interface PokerTableHandles {
-    players: Player[];
-    gameState: GameState;
-    canUserAct: boolean;
-    isDealing: boolean;
-    gameOver: boolean;
     handlePlayerAction: (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => void;
     dealNewHand: () => void;
     handleShowCards: (show: boolean) => void;
 }
 
 interface PokerTableProps {
-    setPokerTable: (handles: PokerTableHandles) => void;
+    onStateChange: (state: {
+        players: Player[];
+        gameState: GameState;
+        canUserAct: boolean;
+        isDealing: boolean;
+        gameOver: boolean;
+    }) => void;
 }
 
 function createDeck(): Card[] {
@@ -81,7 +81,7 @@ const ChipStack = ({ amount }: { amount: number }) => {
     );
 };
 
-export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
+export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onStateChange }, ref) => {
     const { t } = useI18n();
     const [gameState, setGameState] = useState<GameState>('setup');
     const [pot, setPot] = useState(0);
@@ -260,7 +260,7 @@ export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
             });
         }
 
-    }, [pot, communityCards, gameState, findBestHand, evaluateHand, t, players]);
+    }, [pot, communityCards, gameState, findBestHand, t, players]);
     
     const advanceRound = useCallback(() => {
         let newCommunityCards = [...communityCards];
@@ -368,7 +368,7 @@ export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
         setWinnerInfo(null);
         const playersWithChips = players.filter(p => p.stack > 0);
         if (players.length > 1 && playersWithChips.length <= 1 && gameState !== 'setup') {
-            toast({ title: t('Game Over'), description: t('A player has run out of chips.') });
+             setTimeout(() => toast({ title: t('Game Over'), description: t('A player has run out of chips.') }), 0);
             setGameState('showdown');
             return;
         }
@@ -482,84 +482,86 @@ export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
 
 
     const handlePlayerAction = (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => {
-        let updatedPlayers = [...players];
-        const userIndex = updatedPlayers.findIndex(p => p.isUser);
-        if (userIndex === -1 || !canUserAct) return;
+        setPlayers(currentPlayers => {
+            let updatedPlayers = [...currentPlayers];
+            const userIndex = updatedPlayers.findIndex(p => p.isUser);
+            if (userIndex === -1 || !canUserAct) return updatedPlayers;
 
-        const user = updatedPlayers[userIndex];
-        let updatedUser = { ...user, hasActed: true };
-        const highestBet = Math.max(...updatedPlayers.map(p => p.currentBet));
+            const user = updatedPlayers[userIndex];
+            let updatedUser = { ...user, hasActed: true };
+            const highestBet = Math.max(...updatedPlayers.map(p => p.currentBet));
 
-        if (action === 'fold') {
-            updatedUser.hasFolded = true;
-            toast({ description: t('You folded') });
-        } else if (action === 'check') {
-            if(user.currentBet < highestBet) {
-                toast({ variant: "destructive", title: t('Invalid Bet'), description: `You must at least call ${highestBet}` });
-                return;
-            }
-            toast({ description: t('You check') });
-        } else if (action === 'call') {
-            const amountToCall = highestBet - user.currentBet;
-            if (amountToCall <= 0) {
+            if (action === 'fold') {
+                updatedUser.hasFolded = true;
+                toast({ description: t('You folded') });
+            } else if (action === 'check') {
+                if(user.currentBet < highestBet) {
+                    toast({ variant: "destructive", title: t('Invalid Bet'), description: `You must at least call ${highestBet}` });
+                    return updatedPlayers;
+                }
                 toast({ description: t('You check') });
-            } else {
-                const callAmount = Math.min(amountToCall, user.stack);
-                updatedUser.stack -= callAmount;
-                updatedUser.currentBet += callAmount;
+            } else if (action === 'call') {
+                const amountToCall = highestBet - user.currentBet;
+                if (amountToCall <= 0) {
+                    toast({ description: t('You check') });
+                } else {
+                    const callAmount = Math.min(amountToCall, user.stack);
+                    updatedUser.stack -= callAmount;
+                    updatedUser.currentBet += callAmount;
+                    if (updatedUser.stack === 0) {
+                        updatedUser.isAllIn = true;
+                    }
+                    toast({ description: `You call ${callAmount}` });
+                }
+            } else if (action === 'bet') {
+                const betAmountValue = amount ?? 0;
+
+                if (betAmountValue <= 0) {
+                    toast({ variant: "destructive", title: t('Invalid Bet'), description: t('Bet amount must be positive.') });
+                    return updatedPlayers;
+                }
+
+                if (betAmountValue % 5 !== 0) {
+                     toast({ variant: "destructive", title: t('Invalid Bet'), description: 'Bet must be in increments of 5.' });
+                     return updatedPlayers;
+                }
+                
+                const totalBet = user.currentBet + betAmountValue;
+                if (totalBet < highestBet && betAmountValue < user.stack) {
+                    toast({ variant: "destructive", title: t('Invalid Bet'), description: `Minimum bet is ${highestBet}.` });
+                    return updatedPlayers;
+                }
+
+                if (betAmountValue > user.stack) {
+                    toast({ variant: "destructive", title: t('Not enough chips'), description: t('You cannot bet more than you have.') });
+                    return updatedPlayers;
+                }
+                
+                updatedUser.stack -= betAmountValue;
+                updatedUser.currentBet += betAmountValue;
+
                 if (updatedUser.stack === 0) {
                     updatedUser.isAllIn = true;
                 }
-                toast({ description: `You call ${callAmount}` });
-            }
-        } else if (action === 'bet') {
-            const betAmountValue = amount ?? 0;
-
-            if (betAmountValue <= 0) {
-                toast({ variant: "destructive", title: t('Invalid Bet'), description: t('Bet amount must be positive.') });
-                return;
-            }
-
-            if (betAmountValue % 5 !== 0) {
-                 toast({ variant: "destructive", title: t('Invalid Bet'), description: 'Bet must be in increments of 5.' });
-                 return;
+                toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
             }
             
-            const totalBet = user.currentBet + betAmountValue;
-            if (totalBet < highestBet && betAmountValue < user.stack) {
-                toast({ variant: "destructive", title: t('Invalid Bet'), description: `Minimum bet is ${highestBet}.` });
-                return;
-            }
+            updatedUser.totalBet = user.totalBet + (updatedUser.currentBet - user.currentBet);
+            updatedPlayers[userIndex] = updatedUser;
 
-            if (betAmountValue > user.stack) {
-                toast({ variant: "destructive", title: t('Not enough chips'), description: t('You cannot bet more than you have.') });
-                return;
+            const newHighestBet = Math.max(...updatedPlayers.map(p => p.currentBet));
+
+            if (newHighestBet > highestBet) {
+                 updatedPlayers = updatedPlayers.map(p => {
+                    if(!p.isUser && !p.isAllIn && !p.hasFolded) {
+                        return {...p, hasActed: false};
+                    }
+                    return p;
+                });
             }
             
-            updatedUser.stack -= betAmountValue;
-            updatedUser.currentBet += betAmountValue;
-
-            if (updatedUser.stack === 0) {
-                updatedUser.isAllIn = true;
-            }
-            toast({ description: t('You bet {amount}', {amount: betAmountValue}) });
-        }
-        
-        updatedUser.totalBet = user.totalBet + (updatedUser.currentBet - user.currentBet);
-        updatedPlayers[userIndex] = updatedUser;
-
-        const newHighestBet = Math.max(...updatedPlayers.map(p => p.currentBet));
-
-        if (newHighestBet > highestBet) {
-             updatedPlayers = updatedPlayers.map(p => {
-                if(!p.isUser && !p.isAllIn && !p.hasFolded) {
-                    return {...p, hasActed: false};
-                }
-                return p;
-            });
-        }
-        
-        setPlayers(updatedPlayers);
+            return updatedPlayers;
+        });
     };
 
     const handleShowCards = (show: boolean) => {
@@ -579,16 +581,22 @@ export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
     
     const totalPot = pot + players.reduce((sum, p) => sum + p.currentBet, 0);
 
-    useImperativeHandle(setPokerTable as any, () => ({
-        players,
-        gameState,
-        canUserAct,
-        isDealing,
-        gameOver,
+    useImperativeHandle(ref, () => ({
         handlePlayerAction,
         dealNewHand,
         handleShowCards,
     }));
+
+    useEffect(() => {
+        onStateChange({
+            players,
+            gameState,
+            canUserAct,
+            isDealing,
+            gameOver,
+        });
+    }, [players, gameState, canUserAct, isDealing, gameOver, onStateChange]);
+
 
     return (
         <div className="w-full h-full aspect-[9/16] md:aspect-[16/10] bg-primary rounded-3xl p-4 flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
@@ -625,7 +633,7 @@ export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
                                     </>
                                 )}
                             </div>
-                            {player.currentBet > 0 && <ChipStack amount={player.currentBet} />}
+                            {player.totalBet > 0 && <ChipStack amount={player.totalBet} />}
                         </div>
                     ))}
                 </div>
@@ -668,7 +676,7 @@ export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
                                 </>
                             )}
                         </div>
-                        {userPlayer.currentBet > 0 && <ChipStack amount={userPlayer.currentBet} />}
+                        {userPlayer.totalBet > 0 && <ChipStack amount={userPlayer.totalBet} />}
                     </div>
                 )}
             </div>
@@ -691,4 +699,5 @@ export const PokerTable = ({ setPokerTable }: PokerTableProps) => {
             </AlertDialog>
         </div>
     );
-}
+});
+PokerTable.displayName = "PokerTable";
