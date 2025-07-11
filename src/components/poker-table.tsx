@@ -46,7 +46,6 @@ type WinnerInfo = {
 
 export interface PokerTableHandles {
     handlePlayerAction: (action: 'fold' | 'check' | 'bet' | 'call', amount?: number) => void;
-    dealNewHand: () => void;
     handleShowCards: (show: boolean) => void;
     resetToSetup: () => void;
 }
@@ -228,14 +227,14 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
             }
             winners = currentWinners;
         }
-
+        
         setGameState('showdown');
         setCurrentPlayerId(null);
 
         if (winners.length > 0) {
             const potPerWinner = Math.floor(finalPot / winners.length);
             const winnerHandName = winners[0].result.handName;
-            const winnerName = winners.length > 1 ? 'Tie' : winners[0].player.name;
+            const winnerName = winners.length > 1 ? t('Tie') : winners[0].player.name;
 
             setWinnerInfo({ name: winnerName, handName: winnerHandName });
             
@@ -450,6 +449,16 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         if (allHaveActed) {
             const highestBet = Math.max(...activePlayers.map(p => p.currentBet));
             const allBetsMatched = activePlayers.every(p => p.currentBet === highestBet);
+            
+            const allInPlayers = players.filter(p => p.isAllIn && !p.hasFolded);
+            const nonAllInPlayers = players.filter(p => !p.isAllIn && !p.hasFolded);
+
+            // if all remaining players are all-in, or if only one non-all-in player is left, go to showdown
+            if (nonAllInPlayers.length < 2 && allInPlayers.length > 0) {
+                 setTimeout(() => handleShowdown(), 1000);
+                 return;
+            }
+
             if (allBetsMatched) {
                 advanceRound();
                 return;
@@ -513,7 +522,7 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                     if (updatedUser.stack === 0) {
                         updatedUser.isAllIn = true;
                     }
-                    toast({ description: `You call ${callAmount}` });
+                    toast({ description: t('You call {amount}', { amount: callAmount }) });
                 }
             } else if (action === 'bet') {
                 const betAmountValue = amount ?? 0;
@@ -594,7 +603,6 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
 
     useImperativeHandle(ref, () => ({
         handlePlayerAction,
-        dealNewHand,
         handleShowCards,
         resetToSetup,
     }));
@@ -609,6 +617,13 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
         });
     }, [players, gameState, canUserAct, isDealing, gameOver, onStateChange]);
 
+    const getWinnerTitle = () => {
+        if (!winnerInfo) return '';
+        if (winnerInfo.name === t('Tie')) {
+            return t("It's a Tie!");
+        }
+        return t('{name} wins!', { name: winnerInfo.name });
+    };
 
     return (
         <div className="w-full h-full aspect-[9/16] md:aspect-[16/10] bg-primary rounded-3xl p-4 flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
@@ -698,10 +713,10 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-center text-accent font-headline text-3xl">
-                            {winnerInfo?.name === 'Tie' ? "It's a Tie!" : `${winnerInfo?.name} wins!`}
+                           {getWinnerTitle()}
                         </AlertDialogTitle>
                         <AlertDialogDescription className="text-center text-lg">
-                            With a {winnerInfo?.handName}
+                           {winnerInfo && t('With a {handName}', { handName: winnerInfo.handName })}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -713,3 +728,5 @@ export const PokerTable = forwardRef<PokerTableHandles, PokerTableProps>(({ onSt
     );
 });
 PokerTable.displayName = "PokerTable";
+
+    

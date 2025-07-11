@@ -84,7 +84,7 @@ export default function Home() {
                       <Button onClick={() => handleAction('check')} disabled={!canUserAct}>{t('Check')}</Button>
                     ) : (
                       <Button onClick={() => handleAction('call')} disabled={!canUserAct}>
-                        Call ${canUserCheckOrCall.callAmount}
+                        {t('Call {amount}', { amount: canUserCheckOrCall.callAmount })}
                       </Button>
                     )}
                     <div className="flex items-center gap-2">
@@ -93,7 +93,7 @@ export default function Home() {
                     </div>
                     <Button onClick={() => handleAction('bet', userPlayer?.stack)} variant="destructive" className="bg-red-800 hover:bg-red-700" disabled={!canUserAct || !userPlayer?.stack}>All-in</Button>
                   </div>
-                  <div className="flex flex-wrap justify-center items-center gap-2">
+                  <div className="flex flex-wrap justify-center items-center gap-2 mt-2">
                     {tableState.gameState === 'showdown' && <Button onClick={handleDealNewHand} className="bg-accent hover:bg-accent/90" disabled={tableState.gameOver}>{t('New Hand')}</Button>}
                     <Button onClick={handleShowCards} variant="outline" disabled={tableState.isDealing || tableState.gameState === 'setup' || tableState.gameState === 'showdown'}>{userPlayer?.showHand ? t('Hide My Cards') : t('Show My Cards')}</Button>
                   </div>
@@ -115,3 +115,5 @@ export default function Home() {
     </main>
   );
 }
+
+    

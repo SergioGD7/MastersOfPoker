@@ -17,6 +17,8 @@ const translations = {
         'Fold': 'Fold',
         'Check': 'Check',
         'Bet': 'Bet',
+        'Call {amount}': 'Call ${amount}',
+        'You call {amount}': 'You call ${amount}',
         'New Hand': 'New Hand',
         'Show My Cards': 'Show My Cards',
         'Hide My Cards': 'Hide My Cards',
@@ -39,7 +41,8 @@ const translations = {
         '{name} bets {amount}': '{name} bets {amount}',
         'You win!': 'You win!',
         'You won the pot of ${pot}.': 'You won the pot of ${pot}.',
-        '{name} wins.': '{name} wins.',
+        "{name} wins.": "{name} wins.",
+        "{name} wins!": "{name} wins!",
         '{name} won the pot of ${pot}.': '{name} won the pot of ${pot}.',
         'Number of players': 'Number of players',
         'Players': 'Players',
@@ -77,6 +80,9 @@ const translations = {
         'High Card': 'High Card',
         'When you haven\'t made any of the hands above, the highest card plays.': 'When you haven\'t made any of the hands above, the highest card plays.',
         'Start Game': 'Start Game',
+        "It's a Tie!": "It's a Tie!",
+        "With a {handName}": "With a {handName}",
+        'Tie': 'Tie',
     },
     es: {
         'Masters of Poker': 'Maestros del Poker',
@@ -91,6 +97,8 @@ const translations = {
         'Fold': 'Retirarse',
         'Check': 'Pasar',
         'Bet': 'Apostar',
+        'Call {amount}': 'Igualar ${amount}',
+        'You call {amount}': 'Igualas ${amount}',
         'New Hand': 'Nueva Mano',
         'Show My Cards': 'Mostrar Mis Cartas',
         'Hide My Cards': 'Ocultar Mis Cartas',
@@ -114,6 +122,7 @@ const translations = {
         'You win!': '¡Ganas!',
         'You won the pot of ${pot}.': 'Ganaste el bote de ${pot}.',
         '{name} wins.': '{name} gana.',
+        "{name} wins!": "¡{name} gana!",
         '{name} won the pot of ${pot}.': '{name} ganó el bote de ${pot}.',
         'Number of players': 'Número de jugadores',
         'Players': 'Jugadores',
@@ -151,6 +160,9 @@ const translations = {
         'High Card': 'Carta Alta',
         'When you haven\'t made any of the hands above, the highest card plays.': 'Cuando no se forma ninguna de las manos anteriores, gana la carta más alta.',
         'Start Game': 'Empezar Juego',
+        "It's a Tie!": "¡Es un empate!",
+        "With a {handName}": "Con un {handName}",
+        'Tie': 'Empate',
     }
 };
 
@@ -196,3 +208,5 @@ export function useI18n() {
     }
     return context;
 }
+
+    
