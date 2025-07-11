@@ -22,6 +22,7 @@ type Player = {
     showHand: boolean;
     hasFolded: boolean;
     currentBet: number;
+    totalBet: number; // Total bet in the current hand
     isAllIn: boolean;
     hasActed: boolean;
 };
@@ -73,6 +74,7 @@ export function PokerTable() {
             showHand: false,
             hasFolded: false,
             currentBet: 0,
+            totalBet: 0,
             isAllIn: false,
             hasActed: false,
         }));
@@ -92,11 +94,6 @@ export function PokerTable() {
             let winner: Player | null = null;
             if (activePlayers.length === 1) {
                 winner = activePlayers[0];
-                 if (winner.isUser) {
-                    toast({ description: t('{name} wins the pot.', { name: winner.name }) });
-                } else {
-                    toast({ description: t('{name} wins the pot.', { name: winner.name }) });
-                }
             } else {
                 // Simplified winner determination for multiple players
                 winner = activePlayers[Math.floor(Math.random() * activePlayers.length)];
@@ -118,7 +115,7 @@ export function PokerTable() {
                     };
                 });
                 setPot(0);
-                return updatedPlayers.map(p => ({...p, currentBet: 0})); // Reset all current bets after assigning pot
+                return updatedPlayers.map(p => ({...p, currentBet: 0, totalBet: 0})); // Reset all bets after assigning pot
             }
 
              // If no winner, return bets and reset
@@ -126,6 +123,7 @@ export function PokerTable() {
                 ...p,
                 stack: p.stack + p.currentBet,
                 currentBet: 0,
+                totalBet: 0,
                 showHand: true
             }));
             setPot(0);
@@ -165,6 +163,7 @@ export function PokerTable() {
     
             const playersForNextRound = prevPlayers.map(p => ({
                 ...p,
+                totalBet: p.totalBet + p.currentBet,
                 currentBet: 0,
                 hasActed: p.hasFolded || p.isAllIn,
             }));
@@ -257,7 +256,8 @@ export function PokerTable() {
                 hand: [], 
                 showHand: p.isUser ? p.showHand : false, 
                 hasFolded: false, 
-                currentBet: 0, 
+                currentBet: 0,
+                totalBet: 0,
                 isAllIn: false, 
                 hasActed: false 
             }));
@@ -268,8 +268,7 @@ export function PokerTable() {
         const bigBlind = 20;
         
         let tempPlayers = [...playersForNewHand];
-        let blindPot = 0;
-
+        
         if (tempPlayers.length > 1) {
             const sbPlayerIndex = 0 % tempPlayers.length;
             const bbPlayerIndex = 1 % tempPlayers.length;
@@ -285,8 +284,6 @@ export function PokerTable() {
             bbPlayer.stack -= bbAmount;
             bbPlayer.currentBet += bbAmount;
             if (bbPlayer.stack === 0) bbPlayer.isAllIn = true;
-            
-            blindPot = sbPlayer.currentBet + bbPlayer.currentBet;
         }
         
         const playerHands = tempPlayers.map(() => [tempDeck.pop()!, tempDeck.pop()!]);
@@ -297,7 +294,7 @@ export function PokerTable() {
 
         const finalPlayerState = tempPlayers.map((p, idx) => ({...p, hand: playerHands[idx]}));
         setPlayers(finalPlayerState);
-        setPot(blindPot);
+        setPot(0); // Pot will be calculated based on current bets
         setGameState('pre-flop');
         const firstToActIndex = tempPlayers.length > 2 ? 2 % tempPlayers.length : 0;
         setCurrentPlayerId(finalPlayerState[firstToActIndex]?.id ?? null);
@@ -339,7 +336,7 @@ export function PokerTable() {
             let nextIndex = (currentIndex + 1) % players.length;
             let loopCount = 0; // Failsafe to prevent infinite loops
             while(
-                (players[nextIndex].hasFolded || players[nextIndex].isAllIn || players[nextIndex].hasActed) && 
+                (players[nextIndex].hasFolded || players[nextIndex].isAllIn || (players[nextIndex].hasActed && Math.max(...players.map(p => p.currentBet)) === players[nextIndex].currentBet) ) && 
                 loopCount < players.length
             ) {
                 nextIndex = (nextIndex + 1) % players.length;
@@ -464,6 +461,8 @@ export function PokerTable() {
             callAmount: amountToCall,
         };
     }, [userPlayer, highestBet]);
+    
+    const totalPot = pot + players.reduce((sum, p) => sum + p.totalBet + p.currentBet, 0);
 
     return (
         <div className="w-full aspect-[16/10] bg-primary rounded-3xl p-4 md:p-8 relative flex flex-col items-center justify-between shadow-inner border-4 border-yellow-900/50" style={{boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)'}}>
@@ -498,7 +497,7 @@ export function PokerTable() {
                                 </>
                             )}
                         </div>
-                        {player.currentBet > 0 && <ChipStack amount={player.currentBet} />}
+                        {(player.totalBet + player.currentBet) > 0 && <ChipStack amount={player.totalBet + player.currentBet} />}
                     </div>
                 ))}
             </div>
@@ -516,7 +515,7 @@ export function PokerTable() {
                     </div>
                 )}
                 <div className="bg-black/30 text-accent font-bold text-xl px-6 py-2 rounded-full border-2 border-accent/50">
-                    {t('Pot')}: ${pot + players.reduce((sum, p) => sum + p.currentBet, 0)}
+                    {t('Pot')}: ${totalPot}
                 </div>
             </div>
 
@@ -536,7 +535,7 @@ export function PokerTable() {
                             </>
                          )}
                     </div>
-                    {userPlayer.currentBet > 0 && <ChipStack amount={userPlayer.currentBet} />}
+                    {(userPlayer.totalBet + userPlayer.currentBet) > 0 && <ChipStack amount={userPlayer.totalBet + userPlayer.currentBet} />}
                 </div>
             )}
 
@@ -563,7 +562,3 @@ export function PokerTable() {
         </div>
     );
 }
-
-    
-
-    
